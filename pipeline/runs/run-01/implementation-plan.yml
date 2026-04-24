@@ -1,0 +1,752 @@
+# implementation-plan.yml — Structured batch execution plan
+# Written by phase 30 (plan). Read by implement, integrate, player-flow, stabilize.
+
+game: "Mars Bounce"
+gdd_type: "additive"
+total_batches: 9
+total_features: 22
+new_files: 44
+modified_files: 6
+
+# Viewport budget — computed from scaffold source + GDD notes.
+# Source citations:
+#   - dom_reserved_bottom: pipeline-context.yml line 66 ("total reserved bottom ~64px")
+#   - dom_reserved_top: pipeline-context.yml (reserved_top_px: 0)
+#   - hud_top_px: gdd-analysis.yml game-screen-shell notes ("HUD top ~12% of viewport")
+#   - launcher_bottom_px: gdd-analysis.yml game-screen-shell notes ("launcher bottom ~15%")
+#   - target_height: phase-summary.yml prime.carry_forward.target_device (844px)
+viewport_budget:
+  default:
+    target_device: "390x844 iPhone portrait (dvh)"
+    dom_reserved_top: 0
+    dom_reserved_bottom: 64
+    hud_gpu_px: 101
+    launcher_gpu_px: 127
+    play_area_px: 552
+    total_reserved_px: 292
+    total_viewport_px: 844
+    play_area_pct: 65.4
+    budget_ok: true
+    notes: "play area 65.4% > 60% minimum; hud ~12% (101px); launcher ~15% (127px); logo 64px DOM"
+
+resolved_questions:
+  - id: OQ-001
+    question: "What are the exact star rating thresholds (orbs remaining for 2-star and 3-star)?"
+    decision: "1 star = any clear; 2 stars = orbsRemaining >= 40% of orbsTotal; 3 stars = orbsRemaining >= 66% of orbsTotal"
+    rationale: "Generous thresholds reward casual players while still motivating efficiency. Configurable in tuning.ts as TWO_STAR_THRESHOLD=0.40, THREE_STAR_THRESHOLD=0.66."
+
+  - id: OQ-002
+    question: "What is the levels-per-zone (chapter) count for the PROGRESSION boundary trigger?"
+    decision: "ZONE_SIZE = 10 levels. Chapter 1 = levels 1-10 (Hellas Basin), Chapter 2 = 11-20, etc."
+    rationale: "GDD specifies 10 hand-crafted levels as the tutorial zone; aligns zone boundary with the end of tutorial progression. Encoded as ZONE_SIZE constant in levelGenerator.ts."
+
+  - id: OQ-003
+    question: "Which ad network/SDK is used for the continue (watch-ad-for-3-orbs) system?"
+    decision: "Stub implementation. Build the UX shell (button + orb-grant logic). Ad SDK wired via a no-op AdProvider interface, replaced in integration sprint."
+    rationale: "No ad network specified. Pipeline delivers the fully functional UX; real ad calls stubbed behind AdProvider abstraction. Prevents blocking the core pass."
+
+  - id: OQ-004
+    question: "What is the visual style / art direction for entity sprites (pixel art, vector, painted)?"
+    decision: "Emoji/text placeholders for all entities during core pass. Rock peg = 🪨, Alien egg = 🥚 (tinted), Alien planet = 🪐, Energy crystal = 💎, Orb = ⚡. Canvas CoS passes when shapes are distinguishable at 48×48px minimum — met by emoji size. Full sprite atlas deferred to asset pass."
+    rationale: "No artist or style guide on file. Emoji placeholders are universally readable, colorblind-safe (color + shape + glyph), and satisfy canvas CoS at mobile resolution. Per plan dispatch: prefer emoji/text > tinted sprite > labeled shape when assets are absent."
+
+preserve_list: []
+# Game is fully greenfield — no existing gameplay infrastructure to preserve.
+# Scaffold infrastructure (screens, audio skeleton, asset manifest) is adapted/extended, not replaced.
+
+batches:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BATCH 1 — P0 — Foundation: ECS + Physics + Game Controller
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: 1
+    name: "Foundation — ECS plugin, physics engine, game controller init"
+    priority: P0
+    player_visible: >
+      Player sees the GPU canvas initialized with a placeholder board (emoji pegs and eggs arranged on
+      a black starfield), the HUD showing orb count and score at top, and the WolfGames logo at bottom.
+      The game is running in Pixi mode — not the DOM stub.
+    features: [game-state-ecs, physics-engine, game-screen-shell, asset-manifest, hud-display]
+    cos_covered: [scoring, animated-dynamics, core-interaction, canvas]
+    ux_zones:
+      thumb_zone: [center]
+      touch_targets: [launcher-handle, pause-button]
+      feedback_surfaces: [gpu-canvas, hud-orb-count, hud-score, hud-level]
+    acceptance:
+      # game-state-ecs
+      - given: "game controller initializes with a level config"
+        should: "ECS DB created with score=0, orbsRemaining=orbsTotal, boardState=loaded; setActiveDb called"
+      - given: "ECS transaction addScore(100) fires"
+        should: "db.resources.score equals 100 and bridgeEcsToSignals propagates to SolidJS signal"
+      # physics-engine
+      - given: "orb launched at 45 degrees with initial velocity"
+        should: "orbPhysics.step() returns updated position with gravity applied (y increases each tick)"
+      - given: "orb traveling toward a wall"
+        should: "collisionDetection.reflectWall() returns velocity with correct angle of incidence = angle of reflection"
+      # game-screen-shell
+      - given: "GameScreen.tsx mounts"
+        should: "Pixi Application initializes, canvas appended to container, HUD visible with orb count and score"
+      - given: "controller.destroy() called"
+        should: "Pixi app destroyed; ECS bridge cleaned up; setActiveDb(null) called; no JS errors"
+      # asset-manifest
+      - given: "game boots"
+        should: "asset manifest contains scene-sprites-marsbounce, fx-particles-marsbounce, audio-sfx-marsbounce, audio-music-marsbounce, data-levels-marsbounce bundles"
+    test_loci:
+      - describe: "MarsBouncePlugin — ECS state"
+        file: "tests/game/marsbounce/state/MarsBouncePlugin.test.ts"
+        cases:
+          - "ECS DB created with score=0, orbsRemaining=orbsTotal, boardState=loaded; setActiveDb called"
+          - "ECS transaction addScore(100) fires"
+      - describe: "orbPhysics — step and collision"
+        file: "tests/game/marsbounce/physics/orbPhysics.test.ts"
+        cases:
+          - "orb launched at 45 degrees with initial velocity"
+          - "orb traveling toward a wall"
+      - describe: "GameController — init and destroy"
+        file: "tests/game/marsbounce/GameController.test.ts"
+        cases:
+          - "GameScreen.tsx mounts"
+          - "controller.destroy() called"
+    files:
+      state:
+        - src/game/marsbounce/state/MarsBouncePlugin.ts
+        - src/game/marsbounce/state/bridgeEcsToSignals.ts
+        - src/game/marsbounce/asset-manifest.ts
+      physics:
+        - src/game/marsbounce/physics/orbPhysics.ts
+        - src/game/marsbounce/physics/collisionDetection.ts
+      integration:
+        - src/game/marsbounce/screens/gameController.ts
+        - src/game/marsbounce/renderers/HudRenderer.ts
+        - src/game/marsbounce/index.ts
+      test:
+        - tests/game/marsbounce/state/MarsBouncePlugin.test.ts
+        - tests/game/marsbounce/physics/orbPhysics.test.ts
+        - tests/game/marsbounce/GameController.test.ts
+    how:
+      - "Replace DOM stub gameController.ts with Pixi mode: Application init, ECS DB creation, setActiveDb(db), bridgeEcsToSignals(db), HudRenderer init"
+      - "Write MarsBouncePlugin.ts with correct ECS property order (extends→services→components→resources→archetypes→computed→transactions→actions→systems); resources: score, orbsRemaining, orbsTotal, level, zone, boardState, starsEarned"
+      - "Implement orbPhysics.ts as pure function module (no Pixi imports); gravity 0.3 m/s² equivalent; reflectWall/reflectSphere for collision; deterministic from position+velocity"
+      - "Update asset-manifest.ts to add scene-sprites-marsbounce, fx-particles-marsbounce, audio-sfx-marsbounce, audio-music-marsbounce, data-levels-marsbounce bundles with correct prefixes"
+      - "HudRenderer.ts: GPU Pixi text nodes for orb count, score, level number, pause button; top 101px budget; pause button 44×44px at top-right"
+    risk: HIGH
+    risk_reason: >
+      Touches GameController (central integration point). Converting DOM stub to Pixi mode wires ECS,
+      physics, all renderers, and input simultaneously. Rollback: revert gameController.ts to DOM stub
+      from git; ECS and physics are isolated modules and can be developed independently before wiring.
+      Verify: Pixi canvas visible in browser, HUD readable, no console errors on mount+destroy.
+    definition_of_done:
+      - "acceptance[] tests go red then green"
+      - "integration call site exists at files.integration (gameController.ts)"
+      - "CoS sub-walk clean for cos_covered: scoring, animated-dynamics, core-interaction, canvas"
+      - "touch targets >= 44px for pause button per ux_zones"
+      - "Pixi canvas visible in browser with HUD at top; WolfGames logo at bottom"
+      - "bun run build + bun run test pass within 3 fix cycles"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BATCH 2 — P0 — Orb Launcher: drag-aim-release input + trajectory preview
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: 2
+    name: "Orb Launcher — drag-aim-release input and trajectory preview"
+    priority: P0
+    player_visible: >
+      Player sees a launcher sprite at bottom-center. Dragging up/sideways shows a dotted trajectory
+      line (3-4 reflections). Releasing fires the orb. The orb travels the predicted path, bouncing
+      off walls. Input is blocked while orb is in flight.
+    features: [orb-launcher, trajectory-preview, board-state-machine]
+    cos_covered: [core-interaction, animated-dynamics]
+    ux_zones:
+      thumb_zone: [center]
+      touch_targets: [launcher-handle]
+      feedback_surfaces: [trajectory-preview, launcher-sprite, gpu-canvas]
+    acceptance:
+      # orb-launcher
+      - given: "player drags the launcher handle upward"
+        should: "aim angle updates in real-time; trajectory dotted line shows first 3-4 reflections"
+      - given: "player drags downward"
+        should: "drag cancelled silently; no orb fired; no error feedback (per GDD)"
+      - given: "player releases with valid upward angle"
+        should: "orb fires along computed trajectory; board state transitions idle → aiming → animating"
+      - given: "orb is in flight (animating state)"
+        should: "further drag input is silently ignored; launcher handle does not respond"
+      # trajectory-preview
+      - given: "player begins dragging from launcher"
+        should: "TrajectoryRenderer draws dotted line updating per-frame; line fades toward end"
+      # board-state-machine
+      - given: "board is in animating state and orb resolves"
+        should: "board transitions to resolving state; then to idle (no eggs cleared) or won/lost"
+    test_loci:
+      - describe: "LauncherInput — aim and fire"
+        file: "tests/game/marsbounce/input/LauncherInput.test.ts"
+        cases:
+          - "player drags the launcher handle upward"
+          - "player drags downward"
+          - "player releases with valid upward angle"
+          - "orb is in flight (animating state)"
+      - describe: "trajectoryPreview — raycasting"
+        file: "tests/game/marsbounce/physics/trajectoryPreview.test.ts"
+        cases:
+          - "player begins dragging from launcher"
+      - describe: "boardStateMachine — transitions"
+        file: "tests/game/marsbounce/state/boardStateMachine.test.ts"
+        cases:
+          - "board is in animating state and orb resolves"
+    files:
+      logic:
+        - src/game/marsbounce/physics/trajectoryPreview.ts
+        - src/game/marsbounce/state/boardStateMachine.ts
+        - src/game/marsbounce/interaction-archetype.md
+      renderer:
+        - src/game/marsbounce/renderers/LauncherRenderer.ts
+        - src/game/marsbounce/renderers/TrajectoryRenderer.ts
+      input:
+        - src/game/marsbounce/input/LauncherInput.ts
+      integration:
+        - src/game/marsbounce/screens/gameController.ts
+      test:
+        - tests/game/marsbounce/input/LauncherInput.test.ts
+        - tests/game/marsbounce/physics/trajectoryPreview.test.ts
+        - tests/game/marsbounce/state/boardStateMachine.test.ts
+    how:
+      - "Write interaction-archetype.md documenting drag-aim-release archetype BEFORE coding (core-interaction CoS requirement)"
+      - "LauncherInput.ts: listen to pointertap/pointerdown/pointermove/pointerup on stage; compute angle from launcher position to drag point; block input in animating/resolving/won/lost states; downward drag silent cancel"
+      - "trajectoryPreview.ts: raycasting simulation from current position+angle using orbPhysics collision; return array of line segments for first 3-4 reflections"
+      - "TrajectoryRenderer.ts: GPU Pixi Graphics dotted line drawn from trajectory segments; alpha fade toward end; updates every frame in aiming state"
+      - "boardStateMachine.ts: pure state machine (idle→aiming→animating→resolving→won|lost; paused overlay mode); state written to ECS boardState resource"
+    risk: HIGH
+    risk_reason: >
+      Primary interaction + custom drag-aim-release (non-standard archetype). Viewport positioning
+      (launcher at bottom 40% center) interacts with WolfGames logo (64px). Verify: launcher visually
+      in natural thumb zone; trajectory line updates without lag; input blocked in flight confirmed by test.
+      Rollback: remove LauncherInput wiring from gameController; canvas still renders.
+    definition_of_done:
+      - "acceptance[] tests go red then green"
+      - "integration call site exists at files.integration (gameController.ts wires LauncherInput)"
+      - "CoS sub-walk clean for cos_covered: core-interaction, animated-dynamics"
+      - "interaction-archetype.md written before implementation starts"
+      - "touch target on launcher handle >= 44×44 px"
+      - "trajectory preview visible on drag; orb fires on release; input blocked in flight"
+      - "bun run build + bun run test pass within 3 fix cycles"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BATCH 3 — P0 — Game Entities: pegs, eggs, planet, crystal + level loading
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: 3
+    name: "Game Entities — entity types, level loader, entity renderer"
+    priority: P0
+    player_visible: >
+      Player sees a hand-crafted level with Rock Pegs (🪨), Alien Eggs (🥚 tinted green/purple/orange),
+      an optional Alien Planet (🪐), and Energy Crystals (💎) laid out on a starfield canvas.
+      Orb bounces off pegs, collisions detected. Level 1 data loads from JSON.
+    features: [game-entities, level-generator, level-data-scaffold]
+    cos_covered: [core-interaction, canvas, animated-dynamics]
+    ux_zones:
+      thumb_zone: []
+      touch_targets: []
+      feedback_surfaces: [gpu-canvas, entity-sprites]
+    acceptance:
+      # game-entities
+      - given: "level is loaded with a RockPeg entity"
+        should: "EntityRenderer renders peg at correct position; orb collision detected with peg returns bounce velocity"
+      - given: "level is loaded with an AlienEgg entity with hp=2"
+        should: "ECS entity has hp=2, color, position; EntityRenderer renders egg emoji with tint at correct size (>=48px)"
+      - given: "level contains an EnergyCrystal"
+        should: "ECS entity created; EntityRenderer renders crystal at position; collision with orb triggers orbCollectsCrystal action"
+      # level-generator / level-loader
+      - given: "levelLoader.load(1) called"
+        should: "returns level-001.json data parsed into LevelConfig; peg/egg/crystal positions within valid board bounds"
+      - given: "levelLoader.load(1) called and data-levels-marsbounce bundle not loaded"
+        should: "fallback pool serves level-001 without error; Sentry error logged"
+      # level-data-scaffold
+      - given: "level-001.json loaded"
+        should: "levels 1-5 contain only green eggs, no Alien Planet, 4-6 eggs, 8-10 orbs (onboarding contract)"
+    test_loci:
+      - describe: "game-entities — ECS entity creation and collision"
+        file: "tests/game/marsbounce/entities/gameEntities.test.ts"
+        cases:
+          - "level is loaded with a RockPeg entity"
+          - "level is loaded with an AlienEgg entity with hp=2"
+          - "level contains an EnergyCrystal"
+      - describe: "levelLoader — load and fallback"
+        file: "tests/game/marsbounce/levels/levelLoader.test.ts"
+        cases:
+          - "levelLoader.load(1) called"
+          - "levelLoader.load(1) called and data-levels-marsbounce bundle not loaded"
+      - describe: "level-data — onboarding contract"
+        file: "tests/game/marsbounce/levels/levelData.test.ts"
+        cases:
+          - "level-001.json loaded"
+    files:
+      entities:
+        - src/game/marsbounce/entities/RockPeg.ts
+        - src/game/marsbounce/entities/AlienEgg.ts
+        - src/game/marsbounce/entities/AlienPlanet.ts
+        - src/game/marsbounce/entities/EnergyCrystal.ts
+      levels:
+        - src/game/marsbounce/levels/levelGenerator.ts
+        - src/game/marsbounce/levels/levelLoader.ts
+        - src/game/marsbounce/levels/solvabilityChecker.ts
+        - src/game/marsbounce/levels/difficultyParams.ts
+        - src/game/marsbounce/levels/seededRng.ts
+        - src/game/marsbounce/data/levels/hand-crafted/level-001.json
+        - src/game/marsbounce/data/levels/hand-crafted/level-002.json
+        - src/game/marsbounce/data/levels/hand-crafted/level-003.json
+        - src/game/marsbounce/data/levels/hand-crafted/level-004.json
+        - src/game/marsbounce/data/levels/hand-crafted/level-005.json
+        - src/game/marsbounce/data/levels/hand-crafted/level-006.json
+        - src/game/marsbounce/data/levels/hand-crafted/level-007.json
+        - src/game/marsbounce/data/levels/hand-crafted/level-008.json
+        - src/game/marsbounce/data/levels/hand-crafted/level-009.json
+        - src/game/marsbounce/data/levels/hand-crafted/level-010.json
+        - src/game/marsbounce/data/levels/fallback-pool.json
+      renderer:
+        - src/game/marsbounce/renderers/EntityRenderer.ts
+      integration:
+        - src/game/marsbounce/screens/gameController.ts
+      test:
+        - tests/game/marsbounce/entities/gameEntities.test.ts
+        - tests/game/marsbounce/levels/levelLoader.test.ts
+        - tests/game/marsbounce/levels/levelData.test.ts
+    how:
+      - "Entity types (RockPeg, AlienEgg, AlienPlanet, EnergyCrystal) define shape/hitbox; registered as ECS archetypes in MarsBouncePlugin (no Math.random in actions)"
+      - "levelLoader.ts: load data-levels-marsbounce bundle; parse level JSON to LevelConfig; fallback to fallback-pool.json (cached at start); last resort = level-001 + Sentry error"
+      - "EntityRenderer.ts: render each entity type as emoji Text node (>=48×48px) at ECS position; tint AlienEgg by color (green/purple/orange); use multiple cues (color+shape+glyph) for colorblind safety"
+      - "level-001 through level-010 JSON: levels 1-5 green eggs only, 4-6 eggs, 8-10 orbs; levels 6-10 introduce purple eggs and one optional Alien Planet; no orange eggs before level 20"
+      - "seededRng.ts: pure function, seed = levelNumber × 48271 + 9973; no global state, no Math.random"
+    risk: MEDIUM
+    risk_reason: >
+      EntityRenderer adds new GPU elements. levelLoader introduces async asset loading with fallback chain.
+      Verify entity visual distinctiveness at 48×48px on mobile resolution. Risk: level JSON schema mismatch
+      breaks loader — mitigate by defining schema type in levelLoader.ts and validating on load.
+    definition_of_done:
+      - "acceptance[] tests go red then green"
+      - "integration call site exists at files.integration (gameController.ts loads level and creates entities)"
+      - "CoS sub-walk clean for cos_covered: core-interaction, canvas, animated-dynamics"
+      - "entities distinguishable at mobile resolution by color+shape+glyph (canvas CoS)"
+      - "all 10 hand-crafted levels pass solvabilityChecker (500 simulated trajectories)"
+      - "bun run build + bun run test pass within 3 fix cycles"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BATCH 4 — P0 — Scoring + Star Rating + Win/Loss Detection
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: 4
+    name: "Scoring system, star rating, win/loss detection"
+    priority: P0
+    player_visible: >
+      Orb hitting an egg: score increments in HUD. Orb bouncing off multiple pegs before hitting egg:
+      ricochet bonus shown. All eggs cleared: board transitions to won state. Orbs exhausted with eggs
+      remaining: board transitions to lost state. starsEarned computed and bridged to signal.
+    features: [scoring-system, star-rating]
+    cos_covered: [scoring]
+    ux_zones:
+      thumb_zone: []
+      touch_targets: []
+      feedback_surfaces: [hud-score, results-score-counter, star-rating-display]
+    acceptance:
+      # scoring-system
+      - given: "orb hits egg with 1 HP after 2 ricochets"
+        should: "score = (1*200) + (Math.pow(1.4,2)*50) + 0 + 0 = 200 + 98 = 298 (before remainingOrbMul)"
+      - given: "single shot hits 3+ distinct targets"
+        should: "singleShotBonus = 1000 added to shot score"
+      - given: "orb collects crystal"
+        should: "crystalBonus += 50; score updates in HUD; 1 bonus orb added"
+      - given: "level cleared with 4 of 8 orbs remaining (50%)"
+        should: "levelScore multiplied by remainingOrbMul = 1 + 4*0.25 = 2.0"
+      # star-rating
+      - given: "level cleared with 0 orbs remaining"
+        should: "starsEarned = 1"
+      - given: "level cleared with orbsRemaining >= 40% of orbsTotal"
+        should: "starsEarned = 2"
+      - given: "level cleared with orbsRemaining >= 66% of orbsTotal"
+        should: "starsEarned = 3"
+      - given: "starsEarned written to ECS resource"
+        should: "bridgeEcsToSignals propagates starsEarned to SolidJS signal for Results screen"
+    test_loci:
+      - describe: "scoring — multiplicative formula"
+        file: "tests/game/marsbounce/state/scoring.test.ts"
+        cases:
+          - "orb hits egg with 1 HP after 2 ricochets"
+          - "single shot hits 3+ distinct targets"
+          - "orb collects crystal"
+          - "level cleared with 4 of 8 orbs remaining (50%)"
+      - describe: "star-rating — threshold logic"
+        file: "tests/game/marsbounce/state/scoring.test.ts"
+        cases:
+          - "level cleared with 0 orbs remaining"
+          - "level cleared with orbsRemaining >= 40% of orbsTotal"
+          - "level cleared with orbsRemaining >= 66% of orbsTotal"
+          - "starsEarned written to ECS resource"
+    files:
+      state:
+        - src/game/marsbounce/state/scoring.ts
+      integration:
+        - src/game/marsbounce/state/MarsBouncePlugin.ts
+      test:
+        - tests/game/marsbounce/state/scoring.test.ts
+    how:
+      - "scoring.ts: pure function computeScore({eggHpDestroyed, ricochetCount, targetsHitThisShot, crystalsCollected, orbsRemaining, orbsTotal}); no Pixi imports"
+      - "computeStars({orbsRemaining, orbsTotal, TWO_STAR_THRESHOLD=0.40, THREE_STAR_THRESHOLD=0.66}): returns 1|2|3; thresholds as constants"
+      - "Wire scoring.ts into MarsBouncePlugin actions: orbHitsEgg, orbHitsPlanet, orbCollectsCrystal all call addScore transaction; checkWinLose action sets starsEarned and boardState"
+    risk: LOW
+    risk_reason: "Pure math functions. Verify formula against GDD spec. No Pixi or DOM dependencies."
+    definition_of_done:
+      - "acceptance[] tests go red then green"
+      - "integration call site exists at files.integration (MarsBouncePlugin actions call computeScore)"
+      - "CoS sub-walk clean for cos_covered: scoring"
+      - "score formula matches GDD exactly; star thresholds match OQ-001 decision"
+      - "bun run build + bun run test pass within 3 fix cycles"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BATCH 5 — P1 — Entity Animations (GSAP): peg flash, egg pop, crystal sparkle, planet explode
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: 5
+    name: "Entity animations — GSAP feedback on hit, pop, collect, explode"
+    priority: P1
+    player_visible: >
+      Rock peg flashes orange 300ms on orb contact. Alien egg shows crack sprite on 2nd hit (multi-HP);
+      200ms pop + particle burst on destroy; adjacent eggs ripple (visual only). Alien planet 400ms
+      explosion + screen-edge light flash on destroy. Energy crystal 150ms sparkle on collect.
+      Orb has swirling energy trail during flight.
+    features: [entity-animations]
+    cos_covered: [animated-dynamics, canvas]
+    ux_zones:
+      thumb_zone: []
+      touch_targets: []
+      feedback_surfaces: [gpu-canvas]
+    acceptance:
+      - given: "orb contacts a RockPeg"
+        should: "peg alpha/tint GSAP tween fires (orange glow 300ms); tween killed before peg destruction"
+      - given: "AlienEgg with hp=2 hit for first time (hp becomes 1)"
+        should: "crack sprite/overlay shown on egg within 100ms of hit; no destroy yet"
+      - given: "AlienEgg destroyed (hp reaches 0)"
+        should: "egg pop animation 200ms fires; particle burst spawned; adjacent egg ripple fires (0 HP delta)"
+      - given: "AlienPlanet destroyed"
+        should: "400ms explosion animation + screen-edge flash fires; planet entity removed after tween completes"
+      - given: "EnergyCrystal collected by orb"
+        should: "150ms sparkle GSAP tween fires; crystal entity removed after tween completes"
+    test_loci:
+      - describe: "entityAnimations — GSAP tween contract"
+        file: "tests/game/marsbounce/animations/entityAnimations.test.ts"
+        cases:
+          - "orb contacts a RockPeg"
+          - "AlienEgg with hp=2 hit for first time (hp becomes 1)"
+          - "AlienEgg destroyed (hp reaches 0)"
+          - "AlienPlanet destroyed"
+          - "EnergyCrystal collected by orb"
+    files:
+      animations:
+        - src/game/marsbounce/animations/entityAnimations.ts
+      renderer:
+        - src/game/marsbounce/renderers/EntityRenderer.ts
+      integration:
+        - src/game/marsbounce/screens/gameController.ts
+      test:
+        - tests/game/marsbounce/animations/entityAnimations.test.ts
+    how:
+      - "entityAnimations.ts: exported GSAP tween factories (flashPeg, crackEgg, popEgg, explodePlanet, sparkCrystal); each accepts sprite and optional onComplete"
+      - "Destroy order in each animation: gsap.killTweensOf(sprite) → removeAllListeners → parent.removeChild → destroy({children:true}) — enforced by guardrail rule"
+      - "Reuse particleRuntime from src/core/systems/vfx/ for egg-pop particle burst; screen-flash from src/modules/primitives/screen-flash/ for planet destroy"
+      - "Adjacent-egg ripple: visual-only scale tween (no ECS state change); must not modify hp or boardState"
+    risk: MEDIUM
+    risk_reason: >
+      GSAP animations require correct destroy order or orphaned tweens will crash on null sprite.
+      Verify: test mocks confirm killTweensOf called before removeChild; particle count capped at 80 concurrent.
+    definition_of_done:
+      - "acceptance[] tests go red then green"
+      - "integration call site exists at files.integration (EntityRenderer calls entityAnimations on collision events)"
+      - "CoS sub-walk clean for cos_covered: animated-dynamics, canvas"
+      - "all destroy paths call gsap.killTweensOf first (guardrail compliance)"
+      - "particle count <= 80 concurrent (performance guardrail)"
+      - "bun run build + bun run test pass within 3 fix cycles"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BATCH 6 — P1 — Win/Loss Sequences + Results Screen
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: 6
+    name: "Win/loss sequences, results screen with star rating and score counter"
+    priority: P1
+    player_visible: >
+      Win: gold flash → 'Level Clear!' slide-in (300ms back.out) → stars stagger in (250ms each,
+      elastic.out) → score ticks up (500ms) → NEXT LEVEL button fades in + fanfare SFX.
+      Loss: 'So close!' fade-in → TRY AGAIN button → ad-offer button (1s delay).
+      Results screen shows star rating, final score, correct buttons.
+    features: [win-loss-sequences, results-screen, continue-ad-system]
+    cos_covered: [animated-dynamics, scoring, canvas]
+    ux_zones:
+      thumb_zone: [center]
+      touch_targets: [next-level-button, try-again-button, ad-offer-button]
+      feedback_surfaces: [star-rating, score-counter, win-overlay, loss-overlay]
+    acceptance:
+      - given: "board enters won state"
+        should: "winSequence fires: gold flash (100ms) → 'Level Clear!' slide-in (300ms) → stars staggered (250ms each) → score tick-up (500ms) → NEXT LEVEL fade-in (200ms)"
+      - given: "board enters lost state"
+        should: "lossSequence fires: 'So close!' fade-in (300ms) → egg-count shown → TRY AGAIN fade-in (200ms) → ad-offer fade-in after 1s delay"
+      - given: "win sequence completes"
+        should: "navigation to results screen fires; results screen shows starsEarned (1-3), final score, NEXT LEVEL button"
+      - given: "loss sequence completes"
+        should: "navigation to results screen fires; results screen shows 0 stars (or no stars), TRY AGAIN button, ad-offer button"
+      - given: "WATCH AD button tapped on results screen"
+        should: "AdProvider.requestAd() called (stub); on completion orbsRemaining += 3; game resumes same level"
+      - given: "ad-offer button shown on results screen"
+        should: "button is lower on screen than TRY AGAIN button; only shown on loss, not win"
+    test_loci:
+      - describe: "winSequence — animation order and navigation"
+        file: "tests/game/marsbounce/sequences/sequences.test.ts"
+        cases:
+          - "board enters won state"
+          - "win sequence completes"
+      - describe: "lossSequence — animation order and navigation"
+        file: "tests/game/marsbounce/sequences/sequences.test.ts"
+        cases:
+          - "board enters lost state"
+          - "loss sequence completes"
+      - describe: "ResultsScreen — star rating, buttons, ad placement"
+        file: "tests/game/marsbounce/screens/ResultsScreen.test.ts"
+        cases:
+          - "WATCH AD button tapped on results screen"
+          - "ad-offer button shown on results screen"
+    files:
+      sequences:
+        - src/game/marsbounce/sequences/winSequence.ts
+        - src/game/marsbounce/sequences/lossSequence.ts
+      screens:
+        - src/game/marsbounce/screens/ResultsScreen.tsx
+      state:
+        - src/game/marsbounce/state/MarsBouncePlugin.ts
+      integration:
+        - src/game/marsbounce/screens/gameController.ts
+      test:
+        - tests/game/marsbounce/sequences/sequences.test.ts
+        - tests/game/marsbounce/screens/ResultsScreen.test.ts
+    how:
+      - "winSequence.ts / lossSequence.ts: GSAP timelines (no requestAnimationFrame); sequences are promises that resolve when complete before navigate()"
+      - "ResultsScreen.tsx: SolidJS component reading starsEarned/score signals bridged from ECS; reuse star-rating primitive from src/modules/primitives/star-rating/"
+      - "Ad offer: AdProvider interface with requestAd() method; stub implementation returns Promise.resolve() immediately; button visible but labelled 'Watch Ad (Unavailable)' in stub mode"
+      - "Ad-offer button: rendered below TRY AGAIN in DOM order; z-index same level; 1s GSAP delayedCall for fade-in"
+    risk: MEDIUM
+    risk_reason: >
+      Sequence timing must match GDD exactly or feel off. Navigation fires after sequence completes —
+      if sequence promise never resolves, player is stuck. Verify: mock GSAP timelines in tests to
+      confirm onComplete callbacks fire.
+    definition_of_done:
+      - "acceptance[] tests go red then green"
+      - "integration call site exists at files.integration (gameController wires boardState won/lost to sequences)"
+      - "CoS sub-walk clean for cos_covered: animated-dynamics, scoring, canvas"
+      - "NEXT LEVEL and TRY AGAIN buttons >= 44×44 px; ad-offer button lower on screen"
+      - "ad-offer only shown on loss, not win"
+      - "bun run build + bun run test pass within 3 fix cycles"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BATCH 7 — P1 — Screen Identity: Loading, Title, Pause, Chapter Interstitial
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: 7
+    name: "Screen identity — loading screen, title screen, pause overlay, chapter interstitial"
+    priority: P1
+    player_visible: >
+      Loading screen: Martian landscape silhouette + 'Mars Bounce' wordmark + animated progress bar.
+      Title screen: animated Mars surface background, PLAY button (center, large), settings icon (top-right).
+      Pause overlay: Mars-themed styling, RESUME and QUIT buttons (44×44pt min).
+      Chapter interstitial: chapter name, brief description, CONTINUE button; auto-skipped unless zone boundary crossed.
+    features: [loading-screen, title-screen, pause-overlay, chapter-interstitial]
+    cos_covered: [canvas]
+    ux_zones:
+      thumb_zone: [center]
+      touch_targets: [play-button, settings-icon, resume-button, quit-button, continue-button, pause-button]
+      feedback_surfaces: [progress-bar, wordmark, background-animation, logo, overlay-panel, chapter-name]
+    acceptance:
+      - given: "game loads for the first time"
+        should: "LoadingScreen shows Martian silhouette background, Mars Bounce wordmark, animated progress bar"
+      - given: "first-time player: first-time flag is true"
+        should: "LoadingScreen routes to IntroCutsceneScreen after load completes"
+      - given: "returning player: first-time flag is false"
+        should: "LoadingScreen routes directly to StartScreen (no cutscene)"
+      - given: "StartScreen renders"
+        should: "PLAY button is centered, large (>= 44×44px), in natural thumb zone; settings icon top-right (stretching zone)"
+      - given: "pause button tapped in-game"
+        should: "PauseOverlay shows with Mars theming; RESUME and QUIT buttons each >= 44×44 px"
+      - given: "QUIT tapped in pause overlay"
+        should: "navigates to title screen (not loss state); level progress preserved for resume"
+      - given: "player crosses zone boundary (every ZONE_SIZE=10 levels)"
+        should: "ChapterInterstitialScreen shown with new chapter name and description"
+    test_loci:
+      - describe: "LoadingScreen — routing logic"
+        file: "tests/game/marsbounce/screens/LoadingScreen.test.ts"
+        cases:
+          - "first-time player: first-time flag is true"
+          - "returning player: first-time flag is false"
+      - describe: "StartScreen — layout and PLAY button"
+        file: "tests/game/marsbounce/screens/StartScreen.test.ts"
+        cases:
+          - "StartScreen renders"
+      - describe: "PauseOverlay — QUIT navigation"
+        file: "tests/game/marsbounce/screens/PauseOverlay.test.ts"
+        cases:
+          - "pause button tapped in-game"
+          - "QUIT tapped in pause overlay"
+      - describe: "ChapterInterstitialScreen — zone boundary trigger"
+        file: "tests/game/marsbounce/screens/ChapterInterstitialScreen.test.ts"
+        cases:
+          - "player crosses zone boundary (every ZONE_SIZE=10 levels)"
+    files:
+      screens:
+        - src/game/marsbounce/screens/LoadingScreen.tsx
+        - src/game/marsbounce/screens/StartScreen.tsx
+        - src/game/marsbounce/screens/startView.ts
+        - src/game/marsbounce/screens/ChapterInterstitialScreen.tsx
+        - src/core/ui/PauseOverlay.tsx
+      integration:
+        - src/game/marsbounce/screens/GameScreen.tsx
+      test:
+        - tests/game/marsbounce/screens/LoadingScreen.test.ts
+        - tests/game/marsbounce/screens/StartScreen.test.ts
+        - tests/game/marsbounce/screens/PauseOverlay.test.ts
+        - tests/game/marsbounce/screens/ChapterInterstitialScreen.test.ts
+    how:
+      - "LoadingScreen.tsx: replace green background with dark Mars gradient; add emoji Martian silhouette (🏔️ row), wordmark text, GSAP animated progress bar width tween; wire first-time flag routing"
+      - "StartScreen.tsx: Mars surface background (CSS gradient or preloaded image); game logo text styled; PLAY button centered (large, min 44px); settings icon top-right; unlockAudio() called on PLAY tap"
+      - "PauseOverlay.tsx: minimal theming change (background color, border style) via CSS props; RESUME primary, QUIT secondary; 44px min targets; QUIT routes to title"
+      - "ChapterInterstitialScreen.tsx: new SolidJS screen; shows chapter name/description/background; CONTINUE button centered 44px; auto-advances if no zone boundary (skip silently)"
+      - "Note: src/core/ui/PauseOverlay.tsx is read-only scaffold — minimize changes; use CSS theming via class props only"
+    risk: MEDIUM
+    risk_reason: >
+      PauseOverlay.tsx is in src/core/ (read-only per project-structure rule). Only CSS/prop theming allowed.
+      If Mars theme requires structural change, extract a wrapper in src/game/marsbounce/screens/.
+      Verify: first-time routing logic in LoadingScreen tested with mocked localStorage flag.
+    definition_of_done:
+      - "acceptance[] tests go red then green"
+      - "integration call site exists at files.integration (GameScreen wires pause button; LoadingScreen routes correctly)"
+      - "CoS sub-walk clean for cos_covered: canvas"
+      - "PLAY, RESUME, QUIT, CONTINUE buttons all >= 44×44 px"
+      - "PauseOverlay.tsx modifications limited to CSS/props only (no structural changes to src/core/)"
+      - "unlockAudio() called on first PLAY tap (mobile audio requirement)"
+      - "bun run build + bun run test pass within 3 fix cycles"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BATCH 8 — P1 — Intro Cutscene + Audio Wiring
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: 8
+    name: "Intro cutscene and audio system wiring"
+    priority: P1
+    player_visible: >
+      First-time player sees 3-4 illustrated panels (emoji art: 📡 → 🥚 → 🚀 → 🪐) with brief captions.
+      Skip button always visible (top-right, 44×44pt). After skip/complete: routes to title screen.
+      In-game: peg-hit SFX, egg-pop SFX, crystal-collect SFX, win fanfare, loss tone all play.
+      Audio unlocked on first Play tap. Music loops during gameplay.
+    features: [intro-cutscene, audio-system]
+    cos_covered: []
+    ux_zones:
+      thumb_zone: [out-of-reach]
+      touch_targets: [skip-button]
+      feedback_surfaces: [illustrated-panels, caption-text, audio-channel]
+    acceptance:
+      - given: "first-time player flag is true"
+        should: "IntroCutsceneScreen shown after loading; 3-4 panels visible with captions; Skip button top-right 44×44pt"
+      - given: "Skip button tapped"
+        should: "navigates immediately to StartScreen; first-time flag set to false (will not show again)"
+      - given: "cutscene completes (all panels shown)"
+        should: "navigates to StartScreen; first-time flag set to false"
+      - given: "PLAY tapped on StartScreen"
+        should: "unlockAudio() called; subsequent SFX play without browser block"
+      - given: "orb hits rock peg"
+        should: "audio-sfx-marsbounce 'peg-flash' SFX plays"
+      - given: "alien egg destroyed"
+        should: "audio-sfx-marsbounce 'egg-pop' SFX plays"
+      - given: "level won"
+        should: "win-fanfare SFX plays"
+    test_loci:
+      - describe: "IntroCutsceneScreen — first-time routing and skip"
+        file: "tests/game/marsbounce/screens/IntroCutsceneScreen.test.ts"
+        cases:
+          - "first-time player flag is true"
+          - "Skip button tapped"
+          - "cutscene completes (all panels shown)"
+      - describe: "AudioManager — SFX wiring and unlockAudio"
+        file: "tests/game/marsbounce/audio/AudioManager.test.ts"
+        cases:
+          - "PLAY tapped on StartScreen"
+          - "orb hits rock peg"
+          - "alien egg destroyed"
+          - "level won"
+    files:
+      screens:
+        - src/game/marsbounce/screens/IntroCutsceneScreen.tsx
+      audio:
+        - src/game/marsbounce/audio/AudioManager.ts
+      integration:
+        - src/game/marsbounce/screens/startView.ts
+        - src/game/marsbounce/screens/gameController.ts
+      test:
+        - tests/game/marsbounce/screens/IntroCutsceneScreen.test.ts
+        - tests/game/marsbounce/audio/AudioManager.test.ts
+    how:
+      - "IntroCutsceneScreen.tsx: 3-4 SolidJS panels with emoji art + text captions; GSAP slide-between panels; Skip button absolute top-right 44px; sets first-time localStorage flag on complete/skip"
+      - "AudioManager.ts: wire game-specific SFX events (pegHit, eggPop, eggCrack, crystalCollect, planetExplode, winFanfare, lossTone, orbLaunch, wallBounce) to audio-sfx-marsbounce bundle"
+      - "unlockAudio() called on first PLAY tap in startView.ts (mobile browser requirement)"
+      - "Music loop: audio-music-marsbounce bundle plays after game start; fades on win/loss sequences"
+    risk: LOW
+    risk_reason: >
+      Cutscene is DOM-only (SolidJS). Audio wiring touches existing AudioManager skeleton — additive changes only.
+      Verify: first-time flag round-trips through localStorage correctly; audio unlock fires on correct gesture.
+    definition_of_done:
+      - "acceptance[] tests go red then green"
+      - "integration call site exists at files.integration (startView.ts calls unlockAudio on PLAY tap)"
+      - "CoS sub-walk clean for cos_covered: (none gated at core pass for these features)"
+      - "Skip button >= 44×44 px; top-right position (stretching zone — correct for passive/infrequent)"
+      - "first-time flag persists across page reload (localStorage)"
+      - "bun run build + bun run test pass within 3 fix cycles"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BATCH 9 — P2 — Polish: HUD animations, orb trail, Alien Planet oscillation
+  # ────────────────────────────────────────────────────────────────────────────
+  - id: 9
+    name: "Polish — orb energy trail, Alien Planet oscillation, HUD score pop"
+    priority: P2
+    player_visible: >
+      Orb has swirling energy particle trail during flight. Alien Planet oscillates slowly (horizontal wobble)
+      when idle; oscillation pauses while orb is in flight. Score and orb count HUD elements 'pop'
+      (scale 1.15x GSAP, 100ms) on update. All animation timing matches GDD specs.
+    features: []
+    cos_covered: [animated-dynamics]
+    ux_zones:
+      thumb_zone: []
+      touch_targets: []
+      feedback_surfaces: [gpu-canvas, hud-orb-count, hud-score]
+    acceptance:
+      - given: "orb is in flight"
+        should: "swirling energy particle trail follows orb path; particle count <= 80 concurrent"
+      - given: "AlienPlanet entity is in board in idle state"
+        should: "planet oscillates horizontally (slow sinusoidal, per oscillationRange and speed from ECS)"
+      - given: "orb is launched (animating state)"
+        should: "planet oscillation pauses for the duration of orb flight"
+      - given: "score updates in HUD"
+        should: "score text scale pops 1.15x → 1.0x (GSAP 100ms ease-out)"
+      - given: "orb count decrements in HUD"
+        should: "orb count text pops 1.15x → 1.0x (GSAP 100ms ease-out)"
+    test_loci:
+      - describe: "polish — orb trail, planet oscillation, HUD pop"
+        file: "tests/game/marsbounce/animations/polish.test.ts"
+        cases:
+          - "orb is in flight"
+          - "AlienPlanet entity is in board in idle state"
+          - "orb is launched (animating state)"
+          - "score updates in HUD"
+          - "orb count decrements in HUD"
+    files:
+      animations:
+        - src/game/marsbounce/animations/entityAnimations.ts
+        - src/game/marsbounce/renderers/EntityRenderer.ts
+        - src/game/marsbounce/renderers/HudRenderer.ts
+      test:
+        - tests/game/marsbounce/animations/polish.test.ts
+    how:
+      - "Orb trail: spawn particles from src/core/systems/vfx/particleRuntime.ts; follow orb position each tick; max 80 concurrent pooled and recycled"
+      - "Planet oscillation: GSAP yoyo tween on planet sprite x-position using oscillationRange/speed ECS values; pause tween in animating state, resume in idle"
+      - "HUD pop: add GSAP scale tween (1.15 → 1.0, 100ms) called by HudRenderer when ECS resource changes"
+    risk: LOW
+    risk_reason: "Purely additive visual polish. No state or interaction changes. Particle count capped at 80."
+    definition_of_done:
+      - "acceptance[] tests go red then green"
+      - "CoS sub-walk clean for cos_covered: animated-dynamics"
+      - "particle count <= 80 concurrent verified in test"
+      - "planet oscillation pauses correctly in animating state"
+      - "bun run build + bun run test pass within 3 fix cycles"

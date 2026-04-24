@@ -1,0 +1,726 @@
+# gdd-analysis.yml — Structured feature delta
+# Written by phase 20 (analyze). Read by plan, implement, player-flow, stabilize.
+
+game: "Mars Bounce"
+counts:
+  exists: 0
+  partial: 3
+  new: 14
+  conflict: 0
+  content_gap: 5
+conflict_breakdown:
+  reuse: 0
+  adapt: 0
+  replace: 0
+high_risk: 2
+open_questions: 4
+
+features:
+
+  # ── PARTIAL features ────────────────────────────────────────────────────────
+
+  - id: asset-manifest
+    name: "Asset Manifest — game bundles"
+    status: partial
+    risk: LOW
+    complexity: low
+    cos_required: []
+    lifecycle_phase: BOOT
+    ux_zones:
+      thumb_zone: ~
+      touch_targets: []
+      feedback_surfaces: []
+    affected_files:
+      - <game-root>/asset-manifest.ts
+    dependencies: []
+    ux:
+      discovery: ~
+      feedback: ~
+      onboarding: ~
+    notes: >
+      Manifest skeleton exists with only `theme-branding` bundle.
+      Needs: scene-sprites-marsbounce (entity atlas), fx-particles-marsbounce,
+      audio-sfx-marsbounce, audio-music-marsbounce, data-levels-marsbounce.
+      Bundle naming must use scene-*/core-*/fx-*/audio-*/data-* prefixes.
+
+  - id: audio-system
+    name: "Audio System — SFX and music"
+    status: partial
+    risk: LOW
+    complexity: low
+    cos_required: []
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: ~
+      touch_targets: []
+      feedback_surfaces: [audio-channel]
+    affected_files:
+      - <game-root>/audio/AudioManager.ts
+    dependencies: [asset-manifest]
+    ux:
+      discovery: "Sounds accompany visual events; settings toggle in title screen"
+      feedback: "SFX on peg hit, egg pop, crystal collect, planet explode, win fanfare, loss tone"
+      onboarding: "Audio unlocked on first Play tap per mobile requirements"
+    notes: >
+      Audio manager skeleton exists at src/game/audio/. Needs game-specific
+      SFX wiring: peg-flash, egg-pop, egg-crack, crystal-collect, planet-explode,
+      win-fanfare, loss-tone, orb-launch, wall-bounce. Must call unlockAudio()
+      on first Play gesture (mobile browser requirement from lifecycle.md).
+
+  - id: pause-overlay
+    name: "Pause Overlay — Mars-themed"
+    status: partial
+    risk: MEDIUM
+    complexity: low
+    cos_required: []
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: center
+      touch_targets: [resume-button, quit-button]
+      feedback_surfaces: [overlay-panel]
+    affected_files:
+      - src/core/ui/PauseOverlay.tsx
+      - <game-root>/screens/GameScreen.tsx
+    dependencies: []
+    ux:
+      discovery: "Pause button at top-right (stretching zone per UX guidelines — passive/infrequent)"
+      feedback: "Blurred gameplay background visible behind overlay; RESUME primary, QUIT secondary"
+      onboarding: "First pause shows pause state clearly; no onboarding needed"
+    notes: >
+      PauseOverlay exists in src/core/ui/PauseOverlay.tsx but shows generic scaffold
+      styling. Needs Mars-themed visual treatment. RESUME and QUIT buttons each
+      require 44×44 pt minimum tap targets. Quit preserves level progress (returns
+      to Title, not lose state). Core/read-only constraint: minimal changes to
+      PauseOverlay.tsx itself; prefer theming via CSS/props.
+
+  # ── CONTENT-GAP features ────────────────────────────────────────────────────
+
+  - id: loading-screen
+    name: "Loading Screen — Mars Bounce identity"
+    status: content-gap
+    risk: MEDIUM
+    complexity: low
+    cos_required: [canvas]
+    lifecycle_phase: BOOT
+    ux_zones:
+      thumb_zone: ~
+      touch_targets: []
+      feedback_surfaces: [progress-bar, wordmark]
+    affected_files:
+      - <game-root>/screens/LoadingScreen.tsx
+    dependencies: [asset-manifest]
+    ux:
+      discovery: "Player sees Mars identity during load wait; sets game expectation"
+      feedback: "Animated progress bar; target < 3 s on mid-range device"
+      onboarding: "Passive — no interaction required"
+    notes: >
+      LoadingScreen exists but shows green (#BCE083) background with generic spinner.
+      GDD requires: Martian landscape silhouette, animated progress bar, 'Mars Bounce'
+      wordmark. First-time vs returning player routing (cutscene vs title) must also
+      be wired here. Content-gap: infrastructure exists, visual identity wrong.
+
+  - id: title-screen
+    name: "Title Screen — Mars Bounce identity"
+    status: content-gap
+    risk: MEDIUM
+    complexity: med
+    cos_required: [canvas]
+    lifecycle_phase: TITLE
+    ux_zones:
+      thumb_zone: center
+      touch_targets: [play-button, settings-icon]
+      feedback_surfaces: [background-animation, logo]
+    affected_files:
+      - <game-root>/screens/StartScreen.tsx
+      - <game-root>/screens/startView.ts
+    dependencies: [asset-manifest]
+    ux:
+      discovery: "Animated Mars surface background establishes game identity; PLAY button large and centered"
+      feedback: "Settings icon top-right (stretching zone, passive); PLAY button center (natural thumb zone)"
+      onboarding: "First-time: routes through intro cutscene. Returning: routes to title directly."
+    notes: >
+      StartScreen exists but has no Mars visual identity. GDD requires animated Mars
+      surface background, game logo, PLAY button (large, centered), settings icon (top-right).
+      startView.ts is a stub game controller for the start screen.
+      Content-gap: infrastructure exists, visual identity absent.
+
+  - id: results-screen
+    name: "Results Screen — win/loss variants"
+    status: content-gap
+    risk: MEDIUM
+    complexity: med
+    cos_required: [canvas, animated-dynamics]
+    lifecycle_phase: OUTCOME
+    ux_zones:
+      thumb_zone: center
+      touch_targets: [next-level-button, try-again-button, ad-offer-button]
+      feedback_surfaces: [star-rating, score-counter, fanfare-animation]
+    affected_files:
+      - <game-root>/screens/ResultsScreen.tsx
+    dependencies: [scoring-system, star-rating]
+    ux:
+      discovery: "Win: gold flash + 'Level Clear!'; Loss: egg pulse + 'So close!'"
+      feedback: >
+        Win sequence: overlay → level-clear title → stars staggered → score counter → next-level button.
+        Loss sequence: overlay → 'So close!' → egg count → try-again button → ad-offer button (1s delay).
+      onboarding: "Star rating visible on first win; orb count shown; sequences are self-explanatory"
+    notes: >
+      ResultsScreen exists but shows generic 'Game Over' text with no star rating,
+      no win/loss branching, no sequences per GDD. Needs full GDD win/loss sequence
+      stagger (animated-dynamics CoS). Ad-offer button appears 1s after TRY AGAIN,
+      non-intrusive (lower on screen). Content-gap.
+
+  - id: game-screen-shell
+    name: "Game Screen — GPU canvas wiring and HUD"
+    status: content-gap
+    risk: HIGH
+    complexity: high
+    cos_required: [core-interaction, canvas, animated-dynamics, scoring]
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: center
+      touch_targets: [launcher-handle, pause-button]
+      feedback_surfaces: [gpu-canvas, hud-orb-count, hud-score, hud-level]
+    affected_files:
+      - <game-root>/screens/GameScreen.tsx
+      - <game-root>/screens/gameController.ts
+    dependencies: [orb-launcher, game-state-ecs, physics-engine]
+    ux:
+      discovery: "Launcher drag handle at bottom center; orb count visible in HUD"
+      feedback: "Trajectory preview shown while dragging; GPU canvas is primary feedback surface"
+      onboarding: "Levels 1-5 hand-crafted with gentle intro; no modal tutorial"
+    notes: >
+      GameScreen.tsx exists but gameController.ts is a DOM stub. Needs conversion
+      to Pixi mode. This is the central integration point that wires ECS, renderers,
+      physics, and input. HIGH risk per risk-rules (touches GameController).
+      HUD must show orb count, level number, score, pause button.
+      WolfGames logo reserved ~64px at bottom; HUD top ~12% of viewport.
+      Game area: below HUD top to above launcher bottom ~15%.
+
+  - id: level-data-scaffold
+    name: "Level Data — hand-crafted JSON levels 1-10 and fallback pool"
+    status: content-gap
+    risk: LOW
+    complexity: low
+    cos_required: []
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: ~
+      touch_targets: []
+      feedback_surfaces: []
+    affected_files:
+      - <game-root>/data/levels/hand-crafted/level-001.json
+      - <game-root>/data/levels/hand-crafted/level-002.json
+      - <game-root>/data/levels/hand-crafted/level-003.json
+      - <game-root>/data/levels/hand-crafted/level-004.json
+      - <game-root>/data/levels/hand-crafted/level-005.json
+      - <game-root>/data/levels/hand-crafted/level-006.json
+      - <game-root>/data/levels/hand-crafted/level-007.json
+      - <game-root>/data/levels/hand-crafted/level-008.json
+      - <game-root>/data/levels/hand-crafted/level-009.json
+      - <game-root>/data/levels/hand-crafted/level-010.json
+      - <game-root>/data/levels/fallback-pool.json
+    dependencies: [level-generator]
+    ux:
+      discovery: ~
+      feedback: ~
+      onboarding: "Levels 1-5 green-only eggs; 6-10 introduce purple and Alien Planet"
+    notes: >
+      No level data directory exists yet. Files must follow the level schema defined
+      by the level generator. Solvability checker validates on CI build.
+      Fallback pool cached at game start; if load fails, serve level-001.
+
+  # ── NEW features ────────────────────────────────────────────────────────────
+
+  - id: orb-launcher
+    name: "Orb Launcher — drag-aim-release input"
+    status: new
+    risk: HIGH
+    complexity: high
+    cos_required: [core-interaction, animated-dynamics]
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: center
+      touch_targets: [launcher-handle]
+      feedback_surfaces: [trajectory-preview, launcher-sprite]
+    affected_files:
+      - <game-root>/renderers/LauncherRenderer.ts
+      - <game-root>/input/LauncherInput.ts
+      - <game-root>/interaction-archetype.md
+    dependencies: [game-state-ecs, physics-engine]
+    ux:
+      discovery: "Launcher at bottom-center with drag handle; trajectory dotted line appears on drag"
+      feedback: >
+        Dotted trajectory preview shows first 3-4 reflections while dragging.
+        Downward-aim drag cancelled silently (no orb fired, no feedback needed per GDD).
+        Input blocked while orb is in flight (animating state).
+        Tap during flight: ignored (no shake/reject — just silent block per GDD).
+      onboarding: "Level 1 layout designed so first natural drag angle hits an egg; aha moment built into terrain"
+    notes: >
+      Interaction archetype: Drag-aim-release (not standard Swap or Tap).
+      Minimum hit area 44×44 pt on launcher handle. Launcher at bottom 40% center column
+      (natural thumb zone). Drag up and left/right to aim. Release fires orb.
+      Only one orb in flight at a time. Per core-interaction CoS: must document
+      interaction archetype in interaction-archetype.md before implementing.
+      HIGH risk: central GameController integration point + viewport layout.
+
+  - id: physics-engine
+    name: "Physics Engine — orb reflection and gravity"
+    status: new
+    risk: MEDIUM
+    complexity: high
+    cos_required: [animated-dynamics]
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: ~
+      touch_targets: []
+      feedback_surfaces: [gpu-canvas]
+    affected_files:
+      - <game-root>/physics/orbPhysics.ts
+      - <game-root>/physics/collisionDetection.ts
+      - <game-root>/physics/trajectoryPreview.ts
+    dependencies: []
+    ux:
+      discovery: "Physics is visible through orb trajectory and bounce responses"
+      feedback: "Orb has swirling energy trail; peg flashes orange 300ms on contact"
+      onboarding: "Trajectory preview teaches reflection before first launch"
+    notes: >
+      Pure logic module (no Pixi imports in step/physics functions — ECS purity rule).
+      Gravity: ~0.3 m/s² equivalent downward curve.
+      Reflection: angle of incidence = angle of reflection off pegs/walls/planets.
+      Bounce limit: 20 bounces without hitting egg/crystal → orb removed.
+      Trajectory preview: raycasting simulation for first 3-4 reflections.
+      Seeded RNG not needed here (deterministic physics from position+velocity).
+
+  - id: game-entities
+    name: "Game Entities — Rock Pegs, Alien Eggs, Alien Planet, Energy Crystal"
+    status: new
+    risk: MEDIUM
+    complexity: high
+    cos_required: [canvas, animated-dynamics, core-interaction]
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: ~
+      touch_targets: []
+      feedback_surfaces: [gpu-canvas, entity-sprites]
+    affected_files:
+      - <game-root>/entities/RockPeg.ts
+      - <game-root>/entities/AlienEgg.ts
+      - <game-root>/entities/AlienPlanet.ts
+      - <game-root>/entities/EnergyCrystal.ts
+      - <game-root>/renderers/EntityRenderer.ts
+    dependencies: [physics-engine, game-state-ecs]
+    ux:
+      discovery: >
+        Rock pegs: orange-red basalt columns, visually distinct.
+        Alien eggs: colored lumpy ovals (green/purple/orange) with bioluminescent spots.
+        Alien planet: ringed planet in alien purples/teals with slow wobble.
+        Energy crystal: bright cyan hexagonal, spinning slowly.
+      feedback: >
+        Rock peg: orange flash 300ms on orb contact.
+        Alien egg: crack sprite on 2nd hit (purple/orange); 200ms pop on destroy;
+        adjacent eggs ripple (visual-only shockwave, 0 HP).
+        Alien planet: 400ms explosion + screen-edge light flash on destroy; wobble pauses during orb flight.
+        Energy crystal: 150ms sparkle on collect; +50 pts + 1 bonus orb.
+      onboarding: "Color-coding teaches HP at a glance; crack sprite signals damage; colors are multi-cue (color + shape)"
+    notes: >
+      Visual distinctiveness required (canvas CoS): every entity type must be
+      distinguishable at a glance at mobile resolution. Green/purple/orange eggs must
+      be distinguishable by more than color alone (shape, pattern, spots) per
+      colorblind accessibility rule (never color alone). Alien Planet oscillation pauses
+      while orb in flight. Crystal max 5 bonus orbs per level. Each entity needs
+      stable identity for animation system (animated-dynamics CoS).
+
+  - id: game-state-ecs
+    name: "Game State — ECS plugin"
+    status: new
+    risk: MEDIUM
+    complexity: med
+    cos_required: [scoring]
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: ~
+      touch_targets: []
+      feedback_surfaces: [hud-orb-count, hud-score, hud-level]
+    affected_files:
+      - <game-root>/state/MarsBouncePlugin.ts
+      - <game-root>/state/bridgeEcsToSignals.ts
+    dependencies: []
+    ux:
+      discovery: ~
+      feedback: "Score updates visible in HUD; orb count decrements after each shot"
+      onboarding: ~
+    notes: >
+      ECS is source of truth per ecs-state rule. SolidJS signals are DOM bridge only.
+      Resources: score, orbsRemaining, orbsTotal, level, zone, boardState, starsEarned.
+      Entities: RockPeg, AlienEgg (with hp, color, position), AlienPlanet (with hp,
+      oscillationX, oscillationRange, speed), EnergyCrystal (position).
+      Actions: launchOrb, orbHitsEgg, orbHitsPlanet, orbCollectsCrystal, orbLost,
+      checkWinLose.
+      Transactions: decrementOrbs, addScore, setEggHP, removePlanet, removeCrystal,
+      setBoardState.
+      bridgeEcsToSignals syncs score, orbsRemaining, starsEarned to SolidJS for
+      Results screen (survives ECS destroy). Plugin property order enforced by ECS rule.
+      No Math.random() in actions — seeded RNG passed via args.
+
+  - id: scoring-system
+    name: "Scoring System — multiplicative dimensions"
+    status: new
+    risk: LOW
+    complexity: med
+    cos_required: [scoring]
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: ~
+      touch_targets: []
+      feedback_surfaces: [hud-score, results-score-counter]
+    affected_files:
+      - <game-root>/state/scoring.ts
+    dependencies: [game-state-ecs]
+    ux:
+      discovery: "Score increments visible in HUD after each shot; bonus multipliers shown in results"
+      feedback: >
+        Crystal collect: +50 pts; peg text shows crystal count.
+        Orb-remaining multiplier visible in level-complete sequence.
+        Score counter ticks up (500ms GSAP ease) in win sequence.
+      onboarding: "Early levels reward basic shots; ricochet bonus teaches chain-shooting"
+    notes: >
+      GDD-specified scoring (physics launcher / ricochet shape from scoring CoS):
+        targetScore     = eggHP_destroyed * 200           (per HP point removed this shot)
+        ricochetBonus   = Math.pow(1.4, ricochetCount) * 50  (geometric — 1→70, 2→98, 3→137...)
+        singleShotBonus = targetsHitThisShot >= 3 ? 1000 : 0  (trickshot)
+        crystalBonus    = crystalsCollected * 50
+        remainingOrbMul = 1 + orbsRemaining * 0.25
+        levelScore      = (targetScore + ricochetBonus + singleShotBonus + crystalBonus) * remainingOrbMul
+      Wide range ensures leaderboard striation (scoring CoS). Pure function, no Pixi imports.
+      Star rating: 1 star = any clear; 2 stars = ≥50% orbs remaining; 3 stars = ≥75% remaining.
+      Star thresholds not specified in GDD — flagged as open question OQ-001.
+
+  - id: level-generator
+    name: "Level Generator — seeded procedural + hand-crafted loader"
+    status: new
+    risk: MEDIUM
+    complexity: high
+    cos_required: [core-interaction]
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: ~
+      touch_targets: []
+      feedback_surfaces: []
+    affected_files:
+      - <game-root>/levels/levelGenerator.ts
+      - <game-root>/levels/levelLoader.ts
+      - <game-root>/levels/solvabilityChecker.ts
+      - <game-root>/levels/difficultyParams.ts
+      - <game-root>/levels/seededRng.ts
+    dependencies: [game-state-ecs, level-data-scaffold]
+    ux:
+      discovery: ~
+      feedback: ~
+      onboarding: >
+        Levels 1-5: green eggs only, no Alien Planets, 4-6 eggs, 8-10 orbs.
+        Levels 6-10: introduce purple eggs and optional Alien Planet.
+        Post-tutorial (11-20): effortless — challenge earned from level 21.
+    notes: >
+      Seed formula: levelNumber × 48271 + 9973. No Math.random() — fully seeded.
+      Solvability: 500 simulated trajectories; max 10 retry attempts (seed + attempt*7919).
+      Fallback pool: 20 hand-crafted layouts indexed by levelNumber mod 20; loaded at
+      game start and cached; last-resort fallback to level-001 with Sentry error.
+      Rejection conditions: occluded egg, min-orbs-exceeded, overlap, < 2 pegs in corridor.
+      seededRng.ts must be a pure function module (no global state, no Math.random).
+      Difficulty curve table in GDD must be encoded in difficultyParams.ts.
+      Orange eggs not permitted before level 20.
+
+  - id: board-state-machine
+    name: "Board State Machine — idle/aiming/animating/resolving/won/lost/paused"
+    status: new
+    risk: MEDIUM
+    complexity: med
+    cos_required: [core-interaction, animated-dynamics]
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: center
+      touch_targets: [launcher-handle]
+      feedback_surfaces: [gpu-canvas]
+    affected_files:
+      - <game-root>/state/boardStateMachine.ts
+    dependencies: [game-state-ecs, orb-launcher, physics-engine]
+    ux:
+      discovery: ~
+      feedback: >
+        State transitions are animated (no instant changes).
+        Input blocked in animating/resolving/won/lost states.
+        Tap during flight: silently ignored per GDD.
+      onboarding: ~
+    notes: >
+      States: idle → aiming → animating → resolving → won | lost.
+      Paused is an overlay mode; board state preserved.
+      Resolving state: check win/lose after orb resolves.
+      Won state: triggers win sequence, then navigates to results.
+      Lost state: triggers loss sequence, then navigates to results.
+      Any transition that changes visible entities must be animated (per animated-dynamics CoS).
+
+  - id: trajectory-preview
+    name: "Trajectory Preview — dotted line 3-4 reflections"
+    status: new
+    risk: MEDIUM
+    complexity: med
+    cos_required: [core-interaction, animated-dynamics]
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: center
+      touch_targets: []
+      feedback_surfaces: [trajectory-line, gpu-canvas]
+    affected_files:
+      - <game-root>/renderers/TrajectoryRenderer.ts
+      - <game-root>/physics/trajectoryPreview.ts
+    dependencies: [physics-engine, orb-launcher]
+    ux:
+      discovery: "Preview appears immediately when player begins drag — teaches reflection mechanic"
+      feedback: "Dotted line shows projected path; updates in real-time as aim angle changes"
+      onboarding: "Preview is the primary onboarding mechanism for the reflection mechanic"
+    notes: >
+      Dotted line rendered on GPU canvas (not DOM). Shows first 3-4 reflections from
+      current aim angle. Updates every frame during aiming state.
+      Trajectory line should fade out toward the end for polish.
+
+  - id: entity-animations
+    name: "Entity Animations — peg flash, egg pop, crystal sparkle, planet explode"
+    status: new
+    risk: MEDIUM
+    complexity: med
+    cos_required: [animated-dynamics, canvas]
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: ~
+      touch_targets: []
+      feedback_surfaces: [gpu-canvas]
+    affected_files:
+      - <game-root>/renderers/EntityRenderer.ts
+      - <game-root>/animations/entityAnimations.ts
+    dependencies: [game-entities, physics-engine]
+    ux:
+      discovery: "All impacts and collections are visually confirmed"
+      feedback: >
+        Rock peg: orange glow flash 300ms (GSAP).
+        Alien egg: crack sprite on 2nd hit of multi-HP egg; 200ms pop + particle burst on destroy.
+        Adjacent eggs: ripple shockwave (visual only, 0 HP damage).
+        Alien planet: 400ms explosion animation + screen-edge light flash.
+        Energy crystal: 150ms sparkle on collect.
+        Orb trail: swirling energy particles during flight.
+      onboarding: "Visual confirmation for every hit teaches HP system without tutorial text"
+    notes: >
+      GSAP for all animation — no requestAnimationFrame (guardrail rule).
+      Kill tweens before destroying sprites (guardrail rule).
+      Particle system via particleRuntime.ts in src/core/systems/vfx/ (reuse).
+      Screen-edge light flash on planet destroy: screen-flash primitive in
+      src/modules/primitives/screen-flash/ (reuse).
+      Adjacent-egg ripple is visual-only (0 HP) — must not change game state.
+
+  - id: win-loss-sequences
+    name: "Win and Loss Sequences — staggered animations"
+    status: new
+    risk: MEDIUM
+    complexity: med
+    cos_required: [animated-dynamics, scoring]
+    lifecycle_phase: OUTCOME
+    ux_zones:
+      thumb_zone: center
+      touch_targets: [next-level-button, try-again-button]
+      feedback_surfaces: [star-rating, score-counter, win-overlay, loss-overlay]
+    affected_files:
+      - <game-root>/sequences/winSequence.ts
+      - <game-root>/sequences/lossSequence.ts
+    dependencies: [game-state-ecs, scoring-system, star-rating]
+    ux:
+      discovery: "Win: gold flash + 'Level Clear!' signals win immediately"
+      feedback: >
+        Win: final-egg-pop → orb-removed → board-won → gold-flash(100ms) →
+        'Level Clear!' slide-in(300ms, back.out) → stars staggered(250ms ea, elastic.out) →
+        score tick-up(500ms) → next-level fade-in(200ms) + fanfare SFX.
+        Loss: orb-fall → orb-flicker(150ms) → board-lost → remaining-eggs-pulse(300ms yoyo) →
+        'So close!' fade-in(300ms) → egg-count-shown → try-again fade-in(200ms) →
+        ad-offer fade-in(1s delay) + low-tone SFX.
+      onboarding: "Sequences are self-directing; NEXT LEVEL and TRY AGAIN buttons large and centered"
+    notes: >
+      Sequences execute entirely in GPU (GSAP). Board state = won/lost blocks input
+      during sequence. After sequence completes, navigate to results screen.
+      Ad-offer: non-intrusive, lower on screen, delayed 1s. Watch-ad grants 3 extra orbs.
+      'So close!' encourages retry — no failure buzzer per GDD.
+      star-rating primitive at src/modules/primitives/star-rating/ is reusable.
+
+  - id: star-rating
+    name: "Star Rating — 1-3 stars based on orbs remaining"
+    status: new
+    risk: LOW
+    complexity: low
+    cos_required: [scoring]
+    lifecycle_phase: OUTCOME
+    ux_zones:
+      thumb_zone: ~
+      touch_targets: []
+      feedback_surfaces: [star-rating-display]
+    affected_files:
+      - <game-root>/state/scoring.ts
+    dependencies: [game-state-ecs, scoring-system]
+    ux:
+      discovery: "Stars appear in win sequence; reinforce replay motivation"
+      feedback: "Stars animate in one by one (elastic.out, 250ms each) in win sequence"
+      onboarding: "Players learn star system from first win; orb economy teaches efficiency"
+    notes: >
+      Star thresholds not specified in GDD (open question OQ-001). Suggested:
+      1 star = any clear, 2 stars = ≥40% orbs remaining, 3 stars = ≥66% orbs remaining.
+      star-rating primitive available in src/modules/primitives/star-rating/ (reuse).
+      starsEarned written to ECS, bridged to signal for Results screen.
+
+  - id: chapter-interstitial
+    name: "Chapter Start Interstitial — zone announcement"
+    status: new
+    risk: MEDIUM
+    complexity: low
+    cos_required: []
+    lifecycle_phase: PROGRESSION
+    ux_zones:
+      thumb_zone: center
+      touch_targets: [continue-button]
+      feedback_surfaces: [chapter-name, background-art, description]
+    affected_files:
+      - <game-root>/screens/ChapterInterstitialScreen.tsx
+    dependencies: [game-state-ecs]
+    ux:
+      discovery: "Shown automatically when crossing chapter boundary; announces new zone"
+      feedback: "Chapter name, brief description, background art preview; CONTINUE button"
+      onboarding: "Brief — 5-10s; player taps CONTINUE; auto-advances if no new zone"
+    notes: >
+      PROGRESSION lifecycle node per lifecycle.md. interstitial-screen wrapper recommended.
+      Shows only when crossing a zone boundary (level mod ZONE_SIZE changes zone index).
+      Zone size not explicitly stated; GDD mentions 4+ zones for 10 hand-crafted levels
+      — zone = 10 levels assumed (open question OQ-002). Chapter 1 = Hellas Basin.
+      CONTINUE button: 44×44 pt minimum, centered in natural thumb zone.
+      Screen shell is DOM (SolidJS), background art GPU or preloaded image.
+
+  - id: intro-cutscene
+    name: "First-Time Intro Cutscene — narrative panels"
+    status: new
+    risk: LOW
+    complexity: low
+    cos_required: []
+    lifecycle_phase: TITLE
+    ux_zones:
+      thumb_zone: out-of-reach
+      touch_targets: [skip-button]
+      feedback_surfaces: [illustrated-panels, caption-text]
+    affected_files:
+      - <game-root>/screens/IntroCutsceneScreen.tsx
+    dependencies: []
+    ux:
+      discovery: "Shown automatically on first launch; skip button always visible"
+      feedback: "3-4 illustrated panels with brief text captions; Skip button top-right (44×44 pt)"
+      onboarding: "Establishes fiction; players who skip miss narrative only, not gameplay info"
+    notes: >
+      Shown to first-time players only (first-time flag in local storage or ECS).
+      Skip button top-right at 44×44 pt minimum. Duration 15-30s.
+      Panel art: distress signal from Mars, alien eggs detected.
+      After cutscene or skip: navigate to Title Screen.
+      TITLE lifecycle phase — runs between BOOT and first title screen show.
+
+  - id: continue-ad-system
+    name: "Continue System — watch ad for 3 extra orbs"
+    status: new
+    risk: LOW
+    complexity: low
+    cos_required: []
+    lifecycle_phase: OUTCOME
+    ux_zones:
+      thumb_zone: center
+      touch_targets: [watch-ad-button]
+      feedback_surfaces: [ad-offer-button, orb-count]
+    affected_files:
+      - <game-root>/screens/ResultsScreen.tsx
+      - <game-root>/state/MarsBouncePlugin.ts
+    dependencies: [game-state-ecs, results-screen]
+    ux:
+      discovery: "Ad-offer button appears 1s after TRY AGAIN; non-intrusive, lower on screen"
+      feedback: "After ad watched: 3 orbs added, game continues from current state (same level, same seed)"
+      onboarding: "Button label explains offer; no pressure — TRY AGAIN (primary) is available without ad"
+    notes: >
+      Ad integration details unspecified in GDD (open question OQ-003).
+      Placeholder implementation acceptable: button visible but non-functional until
+      ad network integrated. Must not be primary CTA (lower on screen per GDD).
+      Only shown on loss state, not win state.
+
+  - id: hud-display
+    name: "HUD — orb count, score, level, pause button"
+    status: new
+    risk: MEDIUM
+    complexity: med
+    cos_required: [canvas]
+    lifecycle_phase: PLAY
+    ux_zones:
+      thumb_zone: out-of-reach
+      touch_targets: [pause-button]
+      feedback_surfaces: [orb-count, score, level-number]
+    affected_files:
+      - <game-root>/renderers/HudRenderer.ts
+    dependencies: [game-state-ecs]
+    ux:
+      discovery: "HUD visible throughout gameplay at top; orb count prominent (resource constraint)"
+      feedback: "Orb count decrements after each shot; score updates after each hit"
+      onboarding: "Orb count teaches resource constraint; level number gives context"
+    notes: >
+      GPU-rendered HUD (Pixi, not DOM). Top ~12% of viewport reserved for HUD.
+      Elements: orb count (most critical — remaining shots), level number, score,
+      pause button (top-right, 44×44 pt, stretching zone — infrequent use OK).
+      HUD reserved top: 0px per pipeline-context (no existing top reservation).
+      Effective game area: below HUD to above launcher (bottom ~15%).
+      hud-display primitive at src/modules/primitives/hud-display/ available (reuse/adapt).
+
+conflicts: []
+  # No conflict features — game is fully greenfield (game_greenfield: true from prime).
+  # All existing features are scaffold infrastructure with no gameplay content to conflict.
+
+risk_areas:
+  - feature: game-screen-shell
+    reason: >
+      Central GameController integration point. Converting from DOM stub to Pixi mode
+      wires ECS, physics engine, all renderers, and input in one place. Touches
+      viewport layout (HUD top reservation, launcher bottom reservation, play area bounds).
+      Failure here breaks all PLAY-phase features.
+
+  - feature: orb-launcher
+    reason: >
+      Primary interaction + trajectory preview + input state machine must all be
+      correct simultaneously. Drag-aim-release archetype is non-standard (not Swap/Tap);
+      requires custom pointer event handling. Viewport positioning (bottom-center, natural
+      thumb zone) interacts with WolfGames logo reservation (64px bottom).
+
+open_questions:
+  - id: OQ-001
+    question: "What are the exact star rating thresholds (orbs remaining for 2-star and 3-star)?"
+    context: >
+      GDD says '1-3 stars based on orbs remaining at level clear' but gives no thresholds.
+      Star rating affects replay motivation and scoring CoS (starsEarned signal).
+      Suggested defaults: 1 star = any clear; 2 stars = ≥40% orbs remaining;
+      3 stars = ≥66% orbs remaining — should be configurable in tuning.
+
+  - id: OQ-002
+    question: "What is the levels-per-zone (chapter) count for the PROGRESSION boundary trigger?"
+    context: >
+      GDD mentions '4+ zones at launch' and '10 hand-crafted levels' for early play.
+      lifecycle.md default is ZONE_SIZE=20. GDD implies chapter ≈ 10 levels (levels 1-10
+      = tutorial, then new zone). Confirm zone size for chapter-interstitial trigger logic.
+
+  - id: OQ-003
+    question: "Which ad network/SDK is used for the continue (watch-ad-for-3-orbs) system?"
+    context: >
+      GDD specifies the UX (non-intrusive, 1s delay, 3 bonus orbs) but not the ad integration.
+      Without this, continue-ad-system can only be stubbed. Pipeline can build the UX shell;
+      ad network wiring deferred to a separate pass or integration sprint.
+
+  - id: OQ-004
+    question: "What is the visual style / art direction for entity sprites (pixel art, vector, painted)?"
+    context: >
+      GDD describes entity sizes and colors but not art style. 'Lumpy ovoid', 'rough orange-red
+      basalt column', 'alien purples and teals' are described. Art style determines spritesheet
+      generation approach and whether canvas CoS passes at a glance test.
+      Canvas CoS requires entities distinguishable at mobile resolution beyond color alone.

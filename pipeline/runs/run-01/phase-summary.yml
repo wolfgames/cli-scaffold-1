@@ -1,0 +1,255 @@
+pass_gate:
+  status: complete
+  pass: core
+  previous_pass: null
+  previous_run: null
+  previous_pass_stable: true
+  gate_decision: skipped_core
+  notes: "core pass — no previous pass required; gate passed"
+  carry_forward: {}
+
+prime:
+  status: complete
+  project: "Mars Bounce"
+  stack: "pixi v8 + solidjs + gsap + bun (vite, vitest)"
+  existing_features: 8
+  dom_overlays:
+    - "WolfGames Logo — bottom, ~64px reserved (bottom-8 margin + ~32px image)"
+  carry_forward:
+    target_device: "iPhone reference portrait 390x844 (dvh)"
+    game_greenfield: true
+    reserved_bottom_px: 64
+    reserved_top_px: 0
+    game_controller_stub: true
+    stack_gaps: []
+    host_rules_missing: false
+
+analyze:
+  status: complete
+  features:
+    exists: 0
+    partial: 3
+    new: 14
+    conflict: 0
+    content_gap: 5
+  conflict_breakdown:
+    reuse: 0
+    adapt: 0
+    replace: 0
+  high_risk: [game-screen-shell, orb-launcher]
+  medium_risk: [pause-overlay, loading-screen, title-screen, results-screen, physics-engine, game-entities, game-state-ecs, board-state-machine, trajectory-preview, entity-animations, win-loss-sequences, chapter-interstitial, hud-display]
+  open_questions: 4
+  carry_forward:
+    critical_integration_point: game-screen-shell
+    transformative_hint: false
+
+plan:
+  status: complete
+  gdd_type: "additive"
+  batches: 9
+  features: 22
+  new_files: 44
+  modified_files: 6
+  viewport_budget:
+    hud_gpu_px: 101
+    launcher_gpu_px: 127
+    dom_reserved_bottom: 64
+    dom_reserved_top: 0
+    play_area_px: 552
+    play_area_pct: 65.4
+    budget_ok: true
+  resolved_questions: 4
+  out_of_pass_cos: []
+  warnings:
+    - "viewport-budget key in pipeline-context.yml was empty dict from 10-prime; overwritten clean by 30-plan (owner)"
+  resolved_questions_scalars:
+    OQ-001: [1, 0.40, 0.66]
+    OQ-002: 10
+    OQ-003: "stub-AdProvider"
+    OQ-004: "emoji-placeholders-core-pass"
+  carry_forward:
+    game_slug: "marsbounce"
+    hook_batch: 1
+    priority_ordering_applied: true
+    cos_deferred_to_batch: {}
+    viewport_budget_derived_from: "measured_from_source"
+    critical_integration_point: "game-screen-shell"
+
+implement:
+  status: complete
+  batches_completed: "9/9"
+  files_modified: 4
+  files_created: 50
+  tests_added: 65
+  features_audited: 22
+  issues_found: 3
+  fixes_applied: 3
+  deferred:
+    - feature: "Procedural level generator (levels > 10)"
+      severity: low
+      reason: "Core pass ships hand-crafted levels 1-10; generator stubbed to fall back to pool so the game is never stuck."
+    - feature: "Real orb physics tick / collision resolution in controller"
+      severity: medium
+      reason: "Batches 3-4 ship the physics module + scoring but the per-tick orb animation loop is deferred to integrate. LauncherInput fires a synthetic resolve to keep the state machine unstuck."
+    - feature: "GSAP-based entity animation wiring in EntityRenderer.onHit"
+      severity: low
+      reason: "entityAnimations helpers + tests exist; the EntityRenderer call sites that invoke flashPeg/popEgg on collision events are connected in 45-integrate alongside the orb tick loop."
+  blockers: []
+  ux_gaps:
+    - "results screen stars bound to placeholder zero — stars signal bridge awaits ECS resource exposure in integrate"
+  cos_gaps: []
+  cos_findings:
+    - batch_id: 1
+      cos_id: scoring
+      lens: feedback
+      status: partial
+      note: "HUD reflects score/orbs/level signals via ECS bridge; score delta animation (batch 9) shipped as helper but wiring deferred"
+    - batch_id: 1
+      cos_id: animated-dynamics
+      lens: feedback
+      status: partial
+      note: "Foundation visible (Pixi canvas, HUD); per-frame animations wired in batches 5/9"
+    - batch_id: 2
+      cos_id: core-interaction
+      lens: affordance
+      status: pass
+      note: "Drag-aim-release archetype documented + tested; launcher 44×44 hit ring"
+    - batch_id: 3
+      cos_id: canvas
+      lens: discoverability
+      status: pass
+      note: "Entity emoji glyphs ≥ 48px; color + shape + glyph cues per OQ-004"
+    - batch_id: 4
+      cos_id: scoring
+      lens: feedback
+      status: pass
+      note: "Score formula matches GDD; star thresholds 0.40 / 0.66 per OQ-001; checkWinLose action wired"
+    - batch_id: 5
+      cos_id: animated-dynamics
+      lens: feedback
+      status: pass
+      note: "flashPeg/popEgg/explodePlanet/sparkCrystal factories ship with destroy-order guardrail test"
+  carry_forward:
+    actual_hook_batch: 1
+    viewport_budget_changed: false
+    priority_reorder_applied: false
+    asset_fallbacks_applied:
+      - "entity-sprites:emoji-placeholders"
+      - "level-data:fallback-pool"
+      - "ad-sdk:stub-AdProvider"
+    deferred_cos: []
+    batch_boundary_violations: []
+    unfixed_ux_issues:
+      - "results-screen-stars-placeholder-bind-to-ecs"
+      - "orb-tick-loop-deferred-to-integrate"
+    dod_failures: []
+
+integrate:
+  status: complete
+  viewport_rederived: false
+  orphans_wired:
+    - "src/game/marsbounce/screens/ResultsScreen.tsx: stars signal — wired starsEarned ECS resource → gameState signal → ResultsScreen"
+    - "src/game/marsbounce/index.ts: barrel import — corrected to ./screens/startView (was ~/game/mygame/screens/startView)"
+  orphans_deleted: []
+  fallbacks_unified:
+    - "entity-sprites → emoji (all entity visuals use emoji Text nodes; no bare Graphics-API shapes found)"
+  unreachable: []
+  warnings: []
+  carry_forward:
+    viewport_budget_recomputed_total: null
+    asset_fallbacks_unified_style: "emoji"
+    unreachable_blocks_playability: false
+    orphan_wiring_blocked: []
+  notes: >
+    viewport_budget_changed was false — no recomputation performed; trusted $runContext.viewport-budget.
+    batch_boundary_violations was empty — no orphan sweep needed.
+    Cross-batch connection fixed: starsEarned ECS resource (batch 4) → gameState signal (state.ts) →
+    bridgeEcsToSignals (batch 1) → ResultsScreen (batch 6). Also corrected marsbounce barrel
+    import to reference ./screens/startView rather than the mygame scaffold path.
+    unfixed_ux_issues (orb-tick-loop-deferred-to-integrate) passed to player_flow per phase instruction.
+
+player_flow:
+  status: complete
+  journey_walked: true
+  transitions_checked:
+    - loading_to_start
+    - start_to_game
+    - game_to_results
+    - results_to_game_next_level
+    - results_to_game_try_again
+  fun_test_result: pass
+  issues_found: 5
+  fixes_applied: 5
+  carry_forward:
+    journey_breaks:
+      - "loading_to_intro: IntroCutsceneScreen not registered as ScreenId — first-time players skip intro and go directly to start"
+    fun_test_failed_features: []
+    difficulty_mismatch:
+      - "L5_to_L6: too_hard — spare orbs drop from 4 to 1 when purple 2HP eggs introduced; GDD promises gradual ramp"
+    theme_drift: []
+    cos_still_failing: []
+  notes: >
+    5 cross-batch bugs found and fixed inline:
+    (1) config.ts wired scaffold generic LoadingScreen/ResultsScreen instead of Mars Bounce themed ones — all three themed screens now registered.
+    (2) config.ts used scaffold lazy-import StartScreen (green #BCE083 background, 'Start Screen' DOM stub) instead of MarsBounceStartScreen.
+    (3) gameController had no observer on boardState won/lost — win/loss sequences were never fired and results screen never navigated to. Fixed: ECS boardState observer added; playWinSequence / playLossSequence imported and wired with sequenceFired guard.
+    (4) ResultsScreen lostBoard() heuristic was score() === 0 — unreliable (player scores during a losing run). Fixed: uses stars() === 0 instead.
+    (5) NEXT LEVEL progression bug: ECS DB always init at level 1, overwriting gameState.level() signal on every game mount. Fixed: seed ECS level from gameState.level() before bridgeEcsToSignals.
+    Carry-forward (not fixed inline): intro cutscene unreachable (ScreenId is closed enum); L5→L6 difficulty spike.
+
+verify:
+  status: complete
+  build: "pass — vite build succeeded, 1527 modules transformed, 1 chunk-size warning (>500 kB, non-blocking)"
+  tests_passing: 214
+  tests_total: 214
+  fix_cycles: 1
+  playability: "visual verification skipped — browser MCP not available"
+  remaining_issues:
+    - "chunk size: index-B-7j4gO1.js 1.1 MB — consider dynamic imports (non-blocking warning)"
+    - "L5→L6 difficulty spike (carry-forward from player_flow: spare orbs drop 4→1 when purple 2HP eggs introduced)"
+    - "intro cutscene unreachable (ScreenId closed enum — carry-forward from player_flow)"
+  carry_forward:
+    browser_verified: false
+    unwinnable: false
+    perf_flags: []
+    notes: >
+      Fix cycle 1: two categories of test failures resolved.
+      (1) facade.test.ts + facade-unload.test.ts — both mocked @wolfgames/components/core without
+      createDomLoader (called at facade.ts:82), causing all tests to throw at construction time.
+      Fixed by adding createDomLoader, createAssetCoordinator, createSignal, and correct
+      KIND_TO_PREFIX/KIND_TO_LOADER constants to both mocks. Also corrected test assertions that
+      referenced non-existent facade methods (getGpuLoader(), loadingState(), dispose()) to match
+      the actual AssetCoordinatorFacade interface.
+      (2) tests/unit/scripts/ + tests/unit/lint/ — 4 suites used `import from "bun:test"` but
+      the project test runner is vitest. Scripts referenced (scaffold-sync, scaffold-release, etc.)
+      also do not exist (project uses amino-* naming). Excluded these directories from vitest config
+      via `exclude` list; they must be run separately with `bun test` when the scripts are present.
+
+stabilize:
+  status: complete
+  completion_ratio: "19/22 features fully complete (3 partial/deferred)"
+  test_count: 230
+  fix_cycles_used: 1
+  known_issues:
+    - "intro cutscene unreachable — ScreenId closed enum (minor)"
+    - "L5→L6 difficulty spike — spare orbs drop 4→1 when purple eggs introduced (minor)"
+    - "chunk size warning — 1.1 MB GameScreen bundle (non-blocking)"
+  cos_failed: []
+  cos_rationale:
+    core-interaction: "PASS — interaction-archetype.md written; drag-aim-release archetype; pointer events with input gating; 44×44 touch target; one-gesture rule met"
+    canvas: "PASS (after stabilize fix: egg glyph 40→48px) — all entities ≥48px; color+shape+glyph distinctiveness; HUD/play area/launcher no overlap; Mars identity clear"
+    animated-dynamics: "PARTIAL — orb tick loop added in stabilize fix cycle 1; GSAP tween factories exist and tested; destroyWithTweenKill enforced; input blocked during animating. GAP: EntityRenderer does not invoke flashPeg/popEgg/etc. on hit — entity animations not wired in collision callbacks"
+    scoring: "PASS — multiplicative formula matches GDD exactly; ricochet geometric bonus; trickshot bonus; remainingOrbMul; star thresholds 0.40/0.66 per OQ-001; starsEarned bridged to SolidJS"
+  completeness_gaps:
+    - item: "animated-dynamics gap — EntityRenderer hit wiring: GSAP animation helpers not called in tickOrb collision branches"
+      rationale: "Entity hit animations (flashPeg, crackEgg, popEgg, sparkCrystal) are implemented and tested but not wired into EntityRenderer.onHit call sites within the tick loop"
+    - item: "Genre-inapplicable checklist items: cascade escalation, gravity-fill board-diff, new-piece spawn from top, cascade resolution"
+      rationale: "Physics launcher genre has no grid gravity-fill; these items are N/A for Mars Bounce; treating as genre-inapplicable rather than gaps"
+  pipeline_status: partial
+  carry_forward:
+    next_pass_ready: false
+    unresolved_for_next_pass:
+      - "animated-dynamics-entity-hit-wiring"
+      - "intro-cutscene-screen-id-registration"
+      - "l5-l6-difficulty-spike-rebalance"
+    pass_stability: stable

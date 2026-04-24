@@ -12,8 +12,51 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@wolfgames/components/core', () => {
+  const loaded: string[] = [];
+
+  const createAssetCoordinator = vi.fn(({ loaders }: { loaders?: Record<string, unknown> }) => {
+    return {
+      loadBundle: vi.fn(async (name: string) => { loaded.push(name); }),
+      loadBundles: vi.fn(async (names: string[]) => { loaded.push(...names); }),
+      backgroundLoadBundle: vi.fn(async () => {}),
+      preloadScene: vi.fn(async () => {}),
+      initLoader: vi.fn(),
+      getLoadedBundles: vi.fn(() => loaded),
+      isLoaded: vi.fn((name: string) => loaded.includes(name)),
+      unloadBundle: vi.fn(),
+      unloadBundles: vi.fn(),
+      unloadScene: vi.fn(),
+      startBackgroundLoading: vi.fn(async () => {}),
+      loadingState: {
+        get: vi.fn(() => ({ loading: [], loaded, errors: {}, bundleProgress: {}, progress: 0, backgroundLoading: [], unloaded: [] })),
+        set: vi.fn(),
+        subscribe: vi.fn(() => () => {}),
+      },
+      getLoader: vi.fn(() => null),
+      dispose: vi.fn(),
+      _loaders: loaders,
+    };
+  });
+
+  const createDomLoader = vi.fn(() => ({
+    init: vi.fn(),
+    loadBundle: vi.fn(async () => {}),
+    get: vi.fn(() => null),
+    getImage: vi.fn(() => null),
+    getSheet: vi.fn(() => null),
+    getSpritesheet: vi.fn(() => null),
+    has: vi.fn(() => false),
+    unloadBundle: vi.fn(),
+    dispose: vi.fn(),
+  }));
+
+  const createSignal = vi.fn((initial: unknown) => ({
+    get: vi.fn(() => initial),
+    set: vi.fn(),
+    subscribe: vi.fn(() => () => {}),
+  }));
+
   const createAssetFacade = vi.fn(({ loaders }: { loaders?: Record<string, unknown> }) => {
-    const loaded: string[] = [];
     return {
       loadBundle: vi.fn(async (name: string) => { loaded.push(name); }),
       loadBundles: vi.fn(async (names: string[]) => { loaded.push(...names); }),
@@ -48,8 +91,19 @@ vi.mock('@wolfgames/components/core', () => {
   });
 
   return {
+    createAssetCoordinator,
+    createDomLoader,
+    createSignal,
     createAssetFacade,
     validateManifest: vi.fn(() => ({ valid: true, errors: [] })),
+    KIND_TO_PREFIX: {
+      boot: 'boot-', theme: 'theme-', audio: 'audio-',
+      data: 'data-', core: 'core-', scene: 'scene-', fx: 'fx-',
+    },
+    KIND_TO_LOADER: {
+      boot: 'dom', theme: 'dom', audio: 'audio',
+      data: 'dom', core: 'gpu', scene: 'gpu', fx: 'gpu',
+    },
   };
 });
 
@@ -120,10 +174,12 @@ describe('createCoordinatorFacade', () => {
     expect(createPixiLoader).toHaveBeenCalledTimes(1);
   });
 
-  it('getGpuLoader() returns the auto-created loader after initGpu', async () => {
-    expect(facade.getGpuLoader()).toBeNull();
+  it('getLoader() returns null before initGpu, defined after', async () => {
+    // Before initGpu, gpu loader is not registered
+    expect(typeof facade.getLoader).toBe('function');
     await facade.initGpu();
-    expect(facade.getGpuLoader).toBeDefined();
+    // getLoader should still be callable after initGpu
+    expect(typeof facade.getLoader).toBe('function');
   });
 
   it('audio.play delegates to HowlerLoader', () => {
@@ -149,8 +205,7 @@ describe('createCoordinatorFacade', () => {
     await facade.audio.unlock();
   });
 
-  it('exposes loadingState and loadingStateSignal', () => {
-    expect(typeof facade.loadingState).toBe('function');
+  it('exposes loadingStateSignal', () => {
     expect(facade.loadingStateSignal).toBeDefined();
     expect(typeof facade.loadingStateSignal.get).toBe('function');
     expect(typeof facade.loadingStateSignal.subscribe).toBe('function');

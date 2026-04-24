@@ -1,0 +1,40 @@
+run: "01"
+pipeline_version: "0.3.8"
+pass: core
+started: "2026-04-24T00:00:00Z"
+finished: "2026-04-24T08:30:00Z"
+config:
+  gdd_gate: auto-handoff
+  think_only: false
+  trace: false
+  skip_groups: []
+  allow_skip_pass: false
+status: partial
+phases:
+  - id: pass-gate
+    status: complete
+    summary: "core pass — no previous pass required; gate passed"
+  - id: prime
+    status: complete
+    summary: "Mars Bounce — pixi v8 + solidjs + gsap + bun (vite, vitest); greenfield mygame/; reserved_bottom_px 64; stub controller confirmed"
+  - id: analyze
+    status: complete
+    summary: "22 features identified (14 new, 5 content-gap, 3 partial); 2 high-risk, 4 open questions"
+  - id: plan
+    status: complete
+    summary: "9 batches; viewport budget 552px play area (65.4%); 4 open questions resolved"
+  - id: implement
+    status: complete
+    summary: "9/9 batches; 50 files created; 65 tests added; 3 deferred items; orb tick loop deferred"
+  - id: integrate
+    status: complete
+    summary: "starsEarned ECS bridge wired; barrel import corrected; all fallbacks unified as emoji"
+  - id: player-flow
+    status: complete
+    summary: "5 cross-batch bugs fixed; 2 carry-forward issues (intro cutscene ScreenId, L5→L6 spike)"
+  - id: verify
+    status: complete
+    summary: "build pass (1527 modules); 214 tests passing; 1 fix cycle"
+  - id: stabilize
+    status: complete
+    summary: "230 tests passing; cos_failed=[]; 1 partial CoS (animated-dynamics entity hit wiring); pipeline_status=partial; game-report.md written"
