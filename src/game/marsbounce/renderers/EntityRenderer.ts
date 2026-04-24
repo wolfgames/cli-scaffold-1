@@ -41,7 +41,7 @@ export class EntityRenderer {
     }
     // Eggs with color tint.
     for (const egg of cfg.eggs) {
-      const sprite = this.spawnGlyph(ALIEN_EGG_GLYPH, egg.x, egg.y, 40);
+      const sprite = this.spawnGlyph(ALIEN_EGG_GLYPH, egg.x, egg.y, 48);
       sprite.tint = EGG_COLOR_TINTS[egg.color] ?? 0xffffff;
       this.rendered.push({ sprite });
     }

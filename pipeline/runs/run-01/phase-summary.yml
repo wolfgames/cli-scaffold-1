@@ -226,12 +226,30 @@ verify:
       via `exclude` list; they must be run separately with `bun test` when the scripts are present.
 
 stabilize:
-  status: pending
-  completion_ratio: ""
-  test_count: 0
-  known_issues: []
+  status: complete
+  completion_ratio: "19/22 features fully complete (3 partial/deferred)"
+  test_count: 230
+  fix_cycles_used: 1
+  known_issues:
+    - "intro cutscene unreachable — ScreenId closed enum (minor)"
+    - "L5→L6 difficulty spike — spare orbs drop 4→1 when purple eggs introduced (minor)"
+    - "chunk size warning — 1.1 MB GameScreen bundle (non-blocking)"
   cos_failed: []
-  cos_rationale: []
-  completeness_gaps: []
-  pipeline_status: ""
-  carry_forward: {}
+  cos_rationale:
+    core-interaction: "PASS — interaction-archetype.md written; drag-aim-release archetype; pointer events with input gating; 44×44 touch target; one-gesture rule met"
+    canvas: "PASS (after stabilize fix: egg glyph 40→48px) — all entities ≥48px; color+shape+glyph distinctiveness; HUD/play area/launcher no overlap; Mars identity clear"
+    animated-dynamics: "PARTIAL — orb tick loop added in stabilize fix cycle 1; GSAP tween factories exist and tested; destroyWithTweenKill enforced; input blocked during animating. GAP: EntityRenderer does not invoke flashPeg/popEgg/etc. on hit — entity animations not wired in collision callbacks"
+    scoring: "PASS — multiplicative formula matches GDD exactly; ricochet geometric bonus; trickshot bonus; remainingOrbMul; star thresholds 0.40/0.66 per OQ-001; starsEarned bridged to SolidJS"
+  completeness_gaps:
+    - item: "animated-dynamics gap — EntityRenderer hit wiring: GSAP animation helpers not called in tickOrb collision branches"
+      rationale: "Entity hit animations (flashPeg, crackEgg, popEgg, sparkCrystal) are implemented and tested but not wired into EntityRenderer.onHit call sites within the tick loop"
+    - item: "Genre-inapplicable checklist items: cascade escalation, gravity-fill board-diff, new-piece spawn from top, cascade resolution"
+      rationale: "Physics launcher genre has no grid gravity-fill; these items are N/A for Mars Bounce; treating as genre-inapplicable rather than gaps"
+  pipeline_status: partial
+  carry_forward:
+    next_pass_ready: false
+    unresolved_for_next_pass:
+      - "animated-dynamics-entity-hit-wiring"
+      - "intro-cutscene-screen-id-registration"
+      - "l5-l6-difficulty-spike-rebalance"
+    pass_stability: stable
