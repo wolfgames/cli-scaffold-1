@@ -2,6 +2,7 @@ run: "01"
 pipeline_version: "0.3.8"
 pass: core
 started: "2026-04-24T00:00:00Z"
+finished: "2026-04-24T08:30:00Z"
 config:
   gdd_gate: auto-handoff
   think_only: false
