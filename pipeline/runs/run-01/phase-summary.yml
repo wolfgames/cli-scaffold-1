@@ -145,23 +145,57 @@ implement:
     dod_failures: []
 
 integrate:
-  status: pending
+  status: complete
   viewport_rederived: false
-  orphans_wired: []
+  orphans_wired:
+    - "src/game/marsbounce/screens/ResultsScreen.tsx: stars signal — wired starsEarned ECS resource → gameState signal → ResultsScreen"
+    - "src/game/marsbounce/index.ts: barrel import — corrected to ./screens/startView (was ~/game/mygame/screens/startView)"
   orphans_deleted: []
-  fallbacks_unified: []
+  fallbacks_unified:
+    - "entity-sprites → emoji (all entity visuals use emoji Text nodes; no bare Graphics-API shapes found)"
   unreachable: []
   warnings: []
-  carry_forward: {}
+  carry_forward:
+    viewport_budget_recomputed_total: null
+    asset_fallbacks_unified_style: "emoji"
+    unreachable_blocks_playability: false
+    orphan_wiring_blocked: []
+  notes: >
+    viewport_budget_changed was false — no recomputation performed; trusted $runContext.viewport-budget.
+    batch_boundary_violations was empty — no orphan sweep needed.
+    Cross-batch connection fixed: starsEarned ECS resource (batch 4) → gameState signal (state.ts) →
+    bridgeEcsToSignals (batch 1) → ResultsScreen (batch 6). Also corrected marsbounce barrel
+    import to reference ./screens/startView rather than the mygame scaffold path.
+    unfixed_ux_issues (orb-tick-loop-deferred-to-integrate) passed to player_flow per phase instruction.
 
 player_flow:
-  status: pending
-  journey_walked: false
-  transitions_checked: []
-  fun_test_result: ""
-  issues_found: 0
-  fixes_applied: 0
-  carry_forward: {}
+  status: complete
+  journey_walked: true
+  transitions_checked:
+    - loading_to_start
+    - start_to_game
+    - game_to_results
+    - results_to_game_next_level
+    - results_to_game_try_again
+  fun_test_result: pass
+  issues_found: 5
+  fixes_applied: 5
+  carry_forward:
+    journey_breaks:
+      - "loading_to_intro: IntroCutsceneScreen not registered as ScreenId — first-time players skip intro and go directly to start"
+    fun_test_failed_features: []
+    difficulty_mismatch:
+      - "L5_to_L6: too_hard — spare orbs drop from 4 to 1 when purple 2HP eggs introduced; GDD promises gradual ramp"
+    theme_drift: []
+    cos_still_failing: []
+  notes: >
+    5 cross-batch bugs found and fixed inline:
+    (1) config.ts wired scaffold generic LoadingScreen/ResultsScreen instead of Mars Bounce themed ones — all three themed screens now registered.
+    (2) config.ts used scaffold lazy-import StartScreen (green #BCE083 background, 'Start Screen' DOM stub) instead of MarsBounceStartScreen.
+    (3) gameController had no observer on boardState won/lost — win/loss sequences were never fired and results screen never navigated to. Fixed: ECS boardState observer added; playWinSequence / playLossSequence imported and wired with sequenceFired guard.
+    (4) ResultsScreen lostBoard() heuristic was score() === 0 — unreliable (player scores during a losing run). Fixed: uses stars() === 0 instead.
+    (5) NEXT LEVEL progression bug: ECS DB always init at level 1, overwriting gameState.level() signal on every game mount. Fixed: seed ECS level from gameState.level() before bridgeEcsToSignals.
+    Carry-forward (not fixed inline): intro cutscene unreachable (ScreenId is closed enum); L5→L6 difficulty spike.
 
 verify:
   status: pending

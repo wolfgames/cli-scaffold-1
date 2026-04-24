@@ -8,8 +8,10 @@
 import { lazy, type Component } from 'solid-js';
 import type { ViewportMode } from '@wolfgames/components/core';
 import type { ScreenId, ScreenAssetConfig } from '~/core/systems/screens/types';
-import { LoadingScreen } from './screens/LoadingScreen';
-import { ResultsScreen } from './screens/ResultsScreen';
+// Use Mars Bounce themed screens so all screens reflect game identity (player-flow fix).
+import { LoadingScreen } from './marsbounce/screens/LoadingScreen';
+import { ResultsScreen } from './marsbounce/screens/ResultsScreen';
+import { StartScreen as MarsBounceStartScreen } from './marsbounce/screens/StartScreen';
 
 /** Game font family — loaded via @font-face in app.css */
 export const GAME_FONT_FAMILY = 'Baloo, system-ui, sans-serif';
@@ -57,7 +59,7 @@ export interface GameConfig {
 export const gameConfig: GameConfig = {
   screens: {
     loading: LoadingScreen,
-    start: lazy(() => import('./screens/StartScreen')),
+    start: MarsBounceStartScreen,
     game: lazy(() => import('./screens/GameScreen')),
     results: ResultsScreen,
   },

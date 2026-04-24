@@ -5,10 +5,10 @@ import { PauseOverlay, useTuning, type ScaffoldTuning } from '~/core';
 import { Logo } from '~/core/ui/Logo';
 import { useAudio } from '~/core/systems/audio';
 import { useGameTracking } from '~/game/setup/tracking';
+import { useScreen } from '~/core/systems/screens';
 
 import type { GameTuning } from '~/game/tuning';
 import { useGameData } from '~/game/screens/useGameData';
-import { gameState } from '~/game/state';
 
 // Game-specific controller — swap this import for a different game
 import { setupGame } from '~/game/mygame/screens/gameController';
@@ -18,7 +18,8 @@ export default function GameScreen() {
   const tuning = useTuning<ScaffoldTuning, GameTuning>();
   const audio = useAudio();
   const gameData = useGameData();
-  const { core: analytics } = useGameTracking();
+  const tracking = useGameTracking();
+  const { goto } = useScreen();
   let containerRef: HTMLDivElement | undefined;
 
   // Setup game-specific controller (creates signals & effects in reactive context)
@@ -27,7 +28,10 @@ export default function GameScreen() {
     tuning,
     audio,
     gameData,
-    analytics,
+    analytics: tracking,
+    // Pass goto so win/loss sequences can navigate to results without coupling
+    // the game controller to the screen system directly.
+    goto: (screen) => { void goto(screen as Parameters<typeof goto>[0]); },
   });
 
   onMount(() => {

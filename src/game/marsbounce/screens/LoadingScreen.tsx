@@ -11,7 +11,7 @@
 import { onMount, createMemo, Show, createSignal } from 'solid-js';
 import { useScreen } from '~/core/systems/screens';
 import { useAssets, useLoadingState } from '~/core/systems/assets';
-import { isFirstTimePlayer, clearFirstTimePlayer } from './firstTimeFlag';
+import { isFirstTimePlayer } from './firstTimeFlag';
 
 export function LoadingScreen() {
   const { goto } = useScreen();
@@ -35,10 +35,10 @@ export function LoadingScreen() {
       if (routed()) return;
       setRouted(true);
       if (isFirstTimePlayer()) {
-        clearFirstTimePlayer();
-        // Intro cutscene screen is registered under scaffold's screen id
-        // system; in batch 8 we add its binding. For now send first-timers
-        // to start after a brief delay so they still see the wordmark.
+        // Intro cutscene (IntroCutsceneScreen) will be registered as a screen
+        // in the asset pass when ScreenId is extended. For now, all players
+        // land on start. Do NOT clear the first-time flag here — the cutscene
+        // screen is responsible for clearing it after the player has seen it.
         await goto('start');
       } else {
         await goto('start');

@@ -17,12 +17,16 @@ export interface GameState {
   setLevel: (level: number) => void;
   incrementLevel: () => void;
 
+  starsEarned: () => number;
+  setStarsEarned: (stars: number) => void;
+
   reset: () => void;
 }
 
 function createGameState(): GameState {
   const [score, setScore] = createSignal(0);
   const [level, setLevel] = createSignal(1);
+  const [starsEarned, setStarsEarned] = createSignal(0);
 
   return {
     score,
@@ -33,9 +37,13 @@ function createGameState(): GameState {
     setLevel,
     incrementLevel: () => setLevel((l) => l + 1),
 
+    starsEarned,
+    setStarsEarned,
+
     reset: () => {
       setScore(0);
       setLevel(1);
+      setStarsEarned(0);
     },
   };
 }

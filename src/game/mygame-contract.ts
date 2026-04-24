@@ -37,6 +37,8 @@ export interface GameControllerDeps {
   audio: unknown;
   gameData: unknown;
   analytics: unknown;
+  /** Optional navigation function. Needed for win/loss sequence → results navigation. */
+  goto?: (screen: string) => void;
 }
 
 export interface GameController {

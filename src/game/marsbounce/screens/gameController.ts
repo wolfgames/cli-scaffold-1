@@ -23,6 +23,8 @@ import type {
 } from '~/game/mygame-contract';
 
 import { createMarsBounceWorld, type MarsBounceDatabase } from '../state/MarsBouncePlugin';
+import { gameState } from '~/game/state';
+import { zoneForLevel } from '../levels/levelGenerator';
 import { bridgeEcsToSignals, type BridgeCleanup } from '../state/bridgeEcsToSignals';
 import { setActiveDb } from '~/core/systems/ecs/DbBridge';
 import { HudRenderer } from '../renderers/HudRenderer';
@@ -39,9 +41,12 @@ import {
   spawnAlienPlanet,
   spawnEnergyCrystal,
 } from '../entities';
+import { playWinSequence } from '../sequences/winSequence';
+import { playLossSequence } from '../sequences/lossSequence';
 
-export const setupGame: SetupGame = (_deps: GameControllerDeps): GameController => {
+export const setupGame: SetupGame = (deps: GameControllerDeps): GameController => {
   const [ariaText, setAriaText] = createSignal('Game loading…');
+  const navigate = deps.goto ?? (() => { /* no-op when goto not provided */ });
 
   // Stable references we clean up in destroy().
   let app: Application | null = null;
@@ -60,6 +65,8 @@ export const setupGame: SetupGame = (_deps: GameControllerDeps): GameController 
   let hudUnsubscribers: Array<() => void> = [];
   // Stage-level pointer listeners we install in init() and remove in destroy().
   let pointerListeners: Array<{ event: string; fn: (e: unknown) => void }> = [];
+  // Guard: sequences fire once per terminal state.
+  let sequenceFired = false;
 
   return {
     gameMode: 'pixi',
@@ -69,6 +76,13 @@ export const setupGame: SetupGame = (_deps: GameControllerDeps): GameController 
 
       // 1. ECS DB first, so the bridge is ready as Pixi spins up.
       ecsDb = createMarsBounceWorld();
+      // Seed level from the Solid signal so NEXT LEVEL progression carries over.
+      // bridgeEcsToSignals will overwrite the signal with ECS value — we set ECS
+      // first so the signal gets the correct level after bridging.
+      const startLevel = gameState.level();
+      if (startLevel > 1) {
+        ecsDb.transactions.setLevel({ level: startLevel, zone: zoneForLevel(startLevel) });
+      }
       setActiveDb(ecsDb);
       unbridge = bridgeEcsToSignals(ecsDb);
 
@@ -132,6 +146,32 @@ export const setupGame: SetupGame = (_deps: GameControllerDeps): GameController 
             hudUnsubscribers.push(ecsDb.observe.resources.score(refreshHud));
             hudUnsubscribers.push(ecsDb.observe.resources.orbsRemaining(refreshHud));
             hudUnsubscribers.push(ecsDb.observe.resources.level(refreshHud));
+
+            // Win/loss sequence observer. Fires once when boardState reaches
+            // 'won' or 'lost' — then navigates to results. The guard ensures
+            // the sequence fires exactly once even if the observer triggers
+            // multiple times for the same terminal state.
+            hudUnsubscribers.push(
+              ecsDb.observe.resources.boardState((state) => {
+                if (sequenceFired) return;
+                if (state === 'won') {
+                  sequenceFired = true;
+                  void playWinSequence({
+                    stage: pixiApp.stage as unknown as { addChild: (c: unknown) => unknown },
+                    navigate: (screen) => navigate(screen),
+                    starsEarned: ecsDb?.resources.starsEarned ?? 0,
+                    score: ecsDb?.resources.score ?? 0,
+                  });
+                } else if (state === 'lost') {
+                  sequenceFired = true;
+                  void playLossSequence({
+                    stage: pixiApp.stage as unknown as { addChild: (c: unknown) => unknown },
+                    navigate: (screen) => navigate(screen),
+                    eggsRemaining: 0,
+                  });
+                }
+              }),
+            );
           }
 
           // 4. Entity renderer + initial level load. Errors fall back to the
@@ -281,6 +321,9 @@ export const setupGame: SetupGame = (_deps: GameControllerDeps): GameController 
     },
 
     destroy() {
+      // Reset sequence guard so a re-init can fire sequences again.
+      sequenceFired = false;
+
       // Remove stage pointer listeners BEFORE destroying the app so nothing
       // fires at a null input module.
       if (app?.stage) {

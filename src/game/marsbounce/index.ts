@@ -6,7 +6,7 @@
  */
 
 export { setupGame } from './screens/gameController';
-export { setupStartScreen } from '~/game/mygame/screens/startView';
+export { setupStartScreen } from './screens/startView';
 
 export { marsBouncePlugin, createMarsBounceWorld } from './state/MarsBouncePlugin';
 export type { MarsBounceDatabase, BoardState } from './state/MarsBouncePlugin';

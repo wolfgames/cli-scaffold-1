@@ -14,7 +14,8 @@ import { stubAdProvider } from './AdProvider';
 
 export function ResultsScreen() {
   const { goto } = useScreen();
-  const stars = createMemo(() => Math.min(3, Math.max(0, 0))); // TODO: bind real stars signal when added
+  // starsEarned is bridged from ECS via bridgeEcsToSignals (cross-batch wiring: integrate phase).
+  const stars = createMemo(() => Math.min(3, Math.max(0, gameState.starsEarned())));
   const score = gameState.score;
 
   const handleNextLevel = () => {
@@ -33,7 +34,9 @@ export function ResultsScreen() {
     void goto('game');
   };
 
-  const lostBoard = () => score() === 0;
+  // Loss = no stars earned (orbs exhausted before clearing all eggs).
+  // score() === 0 is unreliable — player could score during a losing run.
+  const lostBoard = () => stars() === 0;
 
   return (
     <div class="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-[#0b0f1a] to-black px-6">
