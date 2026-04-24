@@ -1,0 +1,14 @@
+{
+  "levelNumber": 7,
+  "orbsTotal": 9,
+  "pegs": [
+    { "x": 80,  "y": 270, "radius": 12 },
+    { "x": 195, "y": 220, "radius": 14 },
+    { "x": 310, "y": 270, "radius": 12 },
+    { "x": 140, "y": 400, "radius": 12 },
+    { "x": 250, "y": 400, "radius": 12 },
+    { "x": 195, "y": 340, "radius": 16 }
+  ],
+  "eggs": [{"x": 70, "y": 160, "radius": 20, "hp": 1, "color": "green"}, {"x": 195, "y": 140, "radius": 20, "hp": 2, "color": "purple"}, {"x": 320, "y": 160, "radius": 20, "hp": 1, "color": "green"}, {"x": 120, "y": 330, "radius": 20, "hp": 2, "color": "purple"}, {"x": 270, "y": 330, "radius": 20, "hp": 1, "color": "green"}, {"x": 195, "y": 470, "radius": 20, "hp": 1, "color": "green"}],
+  "crystals": [{ "x": 195, "y": 520, "radius": 10 }]
+}

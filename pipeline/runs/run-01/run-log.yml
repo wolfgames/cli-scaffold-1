@@ -1,0 +1,18 @@
+run: "01"
+pipeline_version: "0.3.8"
+pass: core
+started: "2026-04-24T00:00:00Z"
+config:
+  gdd_gate: auto-handoff
+  think_only: false
+  trace: false
+  skip_groups: []
+  allow_skip_pass: false
+status: in-progress
+phases:
+  - id: pass-gate
+    status: complete
+    summary: "core pass — no previous pass required; gate passed"
+  - id: prime
+    status: complete
+    summary: "Mars Bounce — pixi v8 + solidjs + gsap + bun (vite, vitest); greenfield mygame/; reserved_bottom_px 64; stub controller confirmed"
